@@ -10,6 +10,7 @@ Route::get('/ping', function () {
     return response()->json(['message' => 'ok']);
 });
 
+Route::post('/auth/register', [AuthController::class, 'register']);
 Route::post('/auth/login', [AuthController::class, 'login']);
 Route::post('/auth/mfa/verify', [AuthController::class, 'verifyMfa']);
 

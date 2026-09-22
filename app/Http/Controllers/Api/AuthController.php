@@ -3,14 +3,34 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\RegisterUserRequest;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Hash;
 use PragmaRX\Google2FA\Google2FA;
 
 class AuthController extends Controller
 {
+    public function register(RegisterUserRequest $request)
+    {
+        $user = User::create([
+            'name' => $request->validated('name'),
+            'email' => $request->validated('email'),
+            'password' => Hash::make($request->validated('password')),
+        ]);
+
+        $token = $user->createToken('auth-token')->plainTextToken;
+
+        return response()->json([
+            'message' => 'Registration successful.',
+            'token' => $token,
+            'user' => $user,
+            'mfa_required' => false,
+        ], 201);
+    }
+
     public function login(Request $request)
     {
         $credentials = $request->validate([
@@ -54,7 +74,7 @@ class AuthController extends Controller
             'code' => ['required', 'string', 'size:6'],
         ]);
 
-        $userId = Cache::get("mfa_challenge:" . $request->challenge_token);
+        $userId = Cache::get('mfa_challenge:'.$request->challenge_token);
 
         if (! $userId) {
             return response()->json([
@@ -70,7 +90,7 @@ class AuthController extends Controller
             ], 422);
         }
 
-        $google2fa = new Google2FA();
+        $google2fa = new Google2FA;
         $valid = $google2fa->verifyKey($user->two_factor_secret, $request->code, 2);
 
         if (! $valid) {
@@ -79,7 +99,7 @@ class AuthController extends Controller
             ], 422);
         }
 
-        Cache::forget('mfa_challenge:' . $request->challenge_token);
+        Cache::forget('mfa_challenge:'.$request->challenge_token);
         Auth::login($user);
 
         $token = $user->createToken('auth-token')->plainTextToken;
