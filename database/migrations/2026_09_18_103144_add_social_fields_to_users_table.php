@@ -9,9 +9,15 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('users', function (Blueprint $table) {
-            $table->dropUnique(['google_id']);
-            $table->dropUnique(['github_id']);
-            $table->dropColumn(['google_id', 'github_id']);
+            if (Schema::hasColumn('users', 'google_id')) {
+                $table->dropUnique(['google_id']);
+                $table->dropColumn('google_id');
+            }
+
+            if (Schema::hasColumn('users', 'github_id')) {
+                $table->dropUnique(['github_id']);
+                $table->dropColumn('github_id');
+            }
         });
     }
 
