@@ -29,6 +29,7 @@ class QuestionResource extends JsonResource
                 'C' => $this->option_c,
                 'D' => $this->option_d,
             ],
+            'time_limit_seconds' => $this->time_limit_seconds,
         ];
     }
 }

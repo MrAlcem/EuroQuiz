@@ -35,8 +35,18 @@ class QuizControllerTest extends TestCase
         $response->assertJsonCount(10, 'data');
 
         $question = $response->json('data.0');
-        $this->assertSame(['id', 'text', 'options'], array_keys($question));
+        $this->assertSame(['id', 'text', 'options', 'time_limit_seconds'], array_keys($question));
         $this->assertSame(['A', 'B', 'C', 'D'], array_keys($question['options']));
+    }
+
+    public function test_start_returns_each_questions_time_limit(): void
+    {
+        Question::factory()->timeLimit(20)->create();
+
+        $response = $this->actingAs(User::factory()->create())->getJson('/api/quiz/start');
+
+        $response->assertOk();
+        $response->assertJsonPath('data.0.time_limit_seconds', 20);
     }
 
     public function test_submit_rejects_missing_answers(): void
@@ -118,6 +128,39 @@ class QuizControllerTest extends TestCase
             'lives_remaining' => 3,
         ]);
         $this->assertSame(50, $user->refresh()->total_score);
+    }
+
+    public function test_submit_rejects_a_missing_chosen_option_key(): void
+    {
+        $question = Question::factory()->create();
+
+        $response = $this->actingAs(User::factory()->create())->postJson('/api/quiz/submit', [
+            'answers' => [
+                ['question_id' => $question->id],
+            ],
+        ]);
+
+        $response->assertUnprocessable();
+        $response->assertJsonValidationErrors(['answers.0.chosen_option']);
+    }
+
+    public function test_submit_treats_a_null_chosen_option_as_a_timed_out_wrong_answer(): void
+    {
+        $question = Question::factory()->correctOption('A')->create();
+        $user = User::factory()->create();
+
+        $response = $this->actingAs($user)->postJson('/api/quiz/submit', [
+            'answers' => [
+                ['question_id' => $question->id, 'chosen_option' => null],
+            ],
+        ]);
+
+        $response->assertOk();
+        $response->assertJson([
+            'score' => 0,
+            'correct_answers' => 0,
+            'lives_remaining' => 2,
+        ]);
     }
 
     public function test_submit_deducts_a_life_per_wrong_answer(): void

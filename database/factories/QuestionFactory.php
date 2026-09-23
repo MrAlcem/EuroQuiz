@@ -27,6 +27,7 @@ class QuestionFactory extends Factory
             'category' => fake()->word(),
             'country' => fake()->randomElement(['NL', 'HR']),
             'difficulty' => fake()->randomElement(['easy', 'medium', 'hard']),
+            'time_limit_seconds' => 15,
         ];
     }
 
@@ -37,6 +38,16 @@ class QuestionFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'difficulty' => $difficulty,
+        ]);
+    }
+
+    /**
+     * Indicate that the question has a specific time limit.
+     */
+    public function timeLimit(int $seconds): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'time_limit_seconds' => $seconds,
         ]);
     }
 

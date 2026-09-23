@@ -36,6 +36,7 @@ class StoreQuestionRequest extends FormRequest
             'category' => ['required', 'string', 'max:255'],
             'country' => ['required', 'string', 'max:255'],
             'difficulty' => ['required', 'string', 'in:easy,medium,hard'],
+            'time_limit_seconds' => ['sometimes', 'integer', 'min:5', 'max:120'],
         ];
     }
 }
