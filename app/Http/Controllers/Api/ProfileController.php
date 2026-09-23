@@ -24,6 +24,8 @@ class ProfileController extends Controller
             'username' => $user->name,
             'email' => $user->email,
             'best_score' => $results->max('score') ?? 0,
+            'total_score' => $user->total_score,
+            'level' => $user->level()->value,
             'history' => ResultResource::collection($results),
         ]);
     }

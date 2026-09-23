@@ -37,6 +37,19 @@ class UserControllerTest extends TestCase
         $response->assertJsonPath('data.0.total_score', 90);
     }
 
+    public function test_index_reports_each_users_level(): void
+    {
+        User::factory()->create(['name' => 'Expert Player', 'total_score' => 300]);
+        User::factory()->create(['name' => 'Newcomer', 'total_score' => 0]);
+
+        $response = $this->actingAs(User::factory()->admin()->create())->getJson('/api/admin/users');
+
+        $data = collect($response->json('data'));
+        $response->assertOk();
+        $this->assertSame('expert', $data->firstWhere('name', 'Expert Player')['level']);
+        $this->assertSame('beginner', $data->firstWhere('name', 'Newcomer')['level']);
+    }
+
     public function test_index_reports_quiz_count_and_last_activity(): void
     {
         $user = User::factory()->create();
