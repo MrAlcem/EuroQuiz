@@ -49,6 +49,41 @@ class QuizControllerTest extends TestCase
         $response->assertJsonPath('data.0.time_limit_seconds', 20);
     }
 
+    public function test_start_filters_by_category(): void
+    {
+        Question::factory()->count(3)->create(['category' => 'Geography']);
+        Question::factory()->count(3)->create(['category' => 'History']);
+
+        $response = $this->actingAs(User::factory()->create())->getJson('/api/quiz/start?category=Geography');
+
+        $response->assertOk();
+        $response->assertJsonCount(3, 'data');
+    }
+
+    public function test_start_filters_by_country(): void
+    {
+        Question::factory()->count(3)->create(['country' => 'NL']);
+        Question::factory()->count(3)->create(['country' => 'HR']);
+
+        $response = $this->actingAs(User::factory()->create())->getJson('/api/quiz/start?country=HR');
+
+        $response->assertOk();
+        $response->assertJsonCount(3, 'data');
+    }
+
+    public function test_start_filters_by_category_and_country_together(): void
+    {
+        Question::factory()->create(['category' => 'Geography', 'country' => 'NL']);
+        Question::factory()->create(['category' => 'Geography', 'country' => 'HR']);
+        Question::factory()->create(['category' => 'History', 'country' => 'NL']);
+
+        $response = $this->actingAs(User::factory()->create())
+            ->getJson('/api/quiz/start?category=Geography&country=NL');
+
+        $response->assertOk();
+        $response->assertJsonCount(1, 'data');
+    }
+
     public function test_submit_rejects_missing_answers(): void
     {
         $response = $this->actingAs(User::factory()->create())
