@@ -11,23 +11,34 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 /**
- * Serves the once-a-day bonus quiz: the same 10 questions for every
- * player on a given date, scored with an extra completion bonus the
- * first time each player submits it that day.
+ * Serves the once-a-day bonus quiz: each player gets their own 10
+ * questions for the date, scored with an extra completion bonus the
+ * first time they submit it that day.
  */
 class DailyChallengeController extends Controller
 {
     public function __construct(private DailyChallengeService $dailyChallengeService) {}
 
     /**
-     * Show today's daily challenge questions and whether the user has
-     * already completed it today.
+     * Show today's daily challenge questions, whether the user has
+     * already completed it today (and if so, with what result), and
+     * when the challenge next resets.
      */
     public function show(Request $request): AnonymousResourceCollection
     {
-        return QuestionResource::collection($this->dailyChallengeService->questionsForToday())
+        $user = $request->user();
+        $attempt = $this->dailyChallengeService->todaysAttempt($user);
+
+        return QuestionResource::collection($this->dailyChallengeService->questionsForToday($user))
             ->additional([
-                'already_completed' => $this->dailyChallengeService->hasCompletedToday($request->user()),
+                'already_completed' => $attempt !== null,
+                'completed_result' => $attempt ? [
+                    'score' => $attempt->result->score,
+                    'correct_answers' => $attempt->result->correct_answers,
+                    'lives_remaining' => $attempt->result->lives_remaining,
+                    'completed_at' => $attempt->created_at->toIso8601String(),
+                ] : null,
+                'resets_at' => $this->dailyChallengeService->resetsAt()->toIso8601String(),
             ]);
     }
 
@@ -42,6 +53,7 @@ class DailyChallengeController extends Controller
         if ($result === null) {
             return response()->json([
                 'message' => "You've already completed today's daily challenge.",
+                'resets_at' => $this->dailyChallengeService->resetsAt()->toIso8601String(),
             ], 409);
         }
 

@@ -28,14 +28,17 @@ class DailyChallengeControllerTest extends TestCase
         $response->assertOk();
         $response->assertJsonCount(10, 'data');
         $response->assertJsonPath('already_completed', false);
+        $response->assertJsonPath('completed_result', null);
+        $this->assertNotNull($response->json('resets_at'));
     }
 
-    public function test_show_returns_the_same_questions_to_every_player_today(): void
+    public function test_show_returns_the_same_questions_to_the_same_user_across_calls(): void
     {
         Question::factory()->count(20)->create();
+        $user = User::factory()->create();
 
-        $first = $this->actingAs(User::factory()->create())->getJson('/api/quiz/daily');
-        $second = $this->actingAs(User::factory()->create())->getJson('/api/quiz/daily');
+        $first = $this->actingAs($user)->getJson('/api/quiz/daily');
+        $second = $this->actingAs($user)->getJson('/api/quiz/daily');
 
         $firstIds = collect($first->json('data'))->pluck('id')->sort()->values();
         $secondIds = collect($second->json('data'))->pluck('id')->sort()->values();
@@ -43,15 +46,30 @@ class DailyChallengeControllerTest extends TestCase
         $this->assertSame($firstIds->all(), $secondIds->all());
     }
 
-    public function test_show_reports_already_completed_after_a_submission(): void
+    public function test_show_returns_different_questions_to_different_users(): void
     {
-        $questions = Question::factory()->count(10)->create();
+        Question::factory()->difficulty('easy')->count(8)->create();
+        Question::factory()->difficulty('medium')->count(6)->create();
+        Question::factory()->difficulty('hard')->count(6)->create();
+
+        $first = $this->actingAs(User::factory()->create())->getJson('/api/quiz/daily');
+        $second = $this->actingAs(User::factory()->create())->getJson('/api/quiz/daily');
+
+        $firstIds = collect($first->json('data'))->pluck('id')->sort()->values();
+        $secondIds = collect($second->json('data'))->pluck('id')->sort()->values();
+
+        $this->assertNotSame($firstIds->all(), $secondIds->all());
+    }
+
+    public function test_show_reports_already_completed_with_the_result_after_a_submission(): void
+    {
+        $questions = Question::factory()->difficulty('easy')->correctOption('A')->count(10)->create();
         $user = User::factory()->create();
 
         $this->actingAs($user)->postJson('/api/quiz/daily/submit', [
             'answers' => $questions->map(fn (Question $question) => [
                 'question_id' => $question->id,
-                'chosen_option' => null,
+                'chosen_option' => 'A',
             ])->all(),
         ]);
 
@@ -59,6 +77,9 @@ class DailyChallengeControllerTest extends TestCase
 
         $response->assertOk();
         $response->assertJsonPath('already_completed', true);
+        $response->assertJsonPath('completed_result.correct_answers', 10);
+        $this->assertNotNull($response->json('completed_result.score'));
+        $this->assertNotNull($response->json('completed_result.completed_at'));
     }
 
     public function test_submit_requires_authentication(): void
@@ -117,6 +138,7 @@ class DailyChallengeControllerTest extends TestCase
         ]);
 
         $response->assertStatus(409);
+        $this->assertNotNull($response->json('resets_at'));
         $this->assertSame($scoreAfterFirstAttempt, $user->refresh()->total_score);
         $this->assertSame(1, DailyChallengeAttempt::where('user_id', $user->id)->count());
     }

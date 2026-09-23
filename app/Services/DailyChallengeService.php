@@ -11,9 +11,10 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Runs the once-a-day bonus quiz: every player gets the same 10 questions
- * on a given date, and completing it for the first time that day earns a
- * flat bonus on top of the normal scoring.
+ * Runs the once-a-day bonus quiz: each player gets their own set of 10
+ * questions for the date (stable if they reopen it, but different from
+ * other players'), and completing it for the first time that day earns
+ * a flat bonus on top of the normal scoring.
  */
 class DailyChallengeService
 {
@@ -27,17 +28,36 @@ class DailyChallengeService
     /**
      * @return Collection<int, Question>
      */
-    public function questionsForToday(): Collection
+    public function questionsForToday(User $user): Collection
     {
-        return $this->questionSelector->selectForDate(Carbon::today());
+        return $this->questionSelector->selectForDate(Carbon::today(), $user);
     }
 
     public function hasCompletedToday(User $user): bool
     {
+        return $this->todaysAttempt($user) !== null;
+    }
+
+    /**
+     * The user's daily challenge attempt for today, if they've already
+     * completed it, with its scored result loaded.
+     */
+    public function todaysAttempt(User $user): ?DailyChallengeAttempt
+    {
         return DailyChallengeAttempt::query()
             ->where('user_id', $user->id)
             ->whereDate('challenge_date', Carbon::today())
-            ->exists();
+            ->with('result')
+            ->first();
+    }
+
+    /**
+     * The moment the daily challenge next resets, i.e. the start of
+     * tomorrow, so the client can show a countdown.
+     */
+    public function resetsAt(): Carbon
+    {
+        return Carbon::tomorrow()->startOfDay();
     }
 
     /**
