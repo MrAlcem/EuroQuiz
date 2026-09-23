@@ -80,4 +80,18 @@ class GamificationTest extends TestCase
         $this->assertSame($first->json('session_id'), $second->json('session_id'));
         $first->assertJsonPath('daily', true);
     }
+
+    public function test_gamification_level_matches_the_profile_and_leaderboard_level(): void
+    {
+        Question::factory()->count(10)->create();
+        $user = User::factory()->create(['total_score' => 150]);
+
+        $quizStart = $this->actingAs($user)->getJson('/api/quiz/start');
+        $profile = $this->actingAs($user)->getJson('/api/user/profile');
+
+        // 150 total_score is Pro under UserLevel's thresholds (100-299),
+        // which GamificationService::level() now delegates to.
+        $quizStart->assertJsonPath('gamification.level', 'Pro');
+        $profile->assertJsonPath('level', 'pro');
+    }
 }
