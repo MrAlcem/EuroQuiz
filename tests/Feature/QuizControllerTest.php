@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Question;
 use App\Models\User;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
 class QuizControllerTest extends TestCase
@@ -18,35 +19,33 @@ class QuizControllerTest extends TestCase
         $response->assertUnauthorized();
     }
 
-    public function test_submit_requires_authentication(): void
+    public function test_answer_requires_authentication(): void
     {
-        $response = $this->postJson('/api/quiz/submit', ['answers' => []]);
+        $response = $this->postJson('/api/quiz/sessions/1/answer', ['chosen_option' => 'A']);
 
         $response->assertUnauthorized();
     }
 
-    public function test_start_returns_ten_random_questions_without_correct_option(): void
+    public function test_start_filters_by_country(): void
     {
-        Question::factory()->count(15)->create();
+        Question::factory()->count(3)->create(['country' => 'NL']);
+        Question::factory()->count(3)->create(['country' => 'HR']);
 
-        $response = $this->actingAs(User::factory()->create())->getJson('/api/quiz/start');
+        $response = $this->actingAs(User::factory()->create())->getJson('/api/quiz/start?country=HR');
 
         $response->assertOk();
-        $response->assertJsonCount(10, 'data');
-
-        $question = $response->json('data.0');
-        $this->assertSame(['id', 'text', 'options', 'time_limit_seconds'], array_keys($question));
-        $this->assertSame(['A', 'B', 'C', 'D'], array_keys($question['options']));
+        $response->assertJsonCount(3, 'data');
     }
 
-    public function test_start_returns_each_questions_time_limit(): void
+    public function test_start_rejects_a_category_not_unlocked_for_the_users_level(): void
     {
-        Question::factory()->timeLimit(20)->create();
+        Question::factory()->count(5)->create(['category' => 'History']);
 
-        $response = $this->actingAs(User::factory()->create())->getJson('/api/quiz/start');
+        $response = $this->actingAs(User::factory()->create(['xp' => 0]))
+            ->getJson('/api/quiz/start?category=History');
 
-        $response->assertOk();
-        $response->assertJsonPath('data.0.time_limit_seconds', 20);
+        $response->assertUnprocessable();
+        $response->assertJsonValidationErrors(['category']);
     }
 
     public function test_start_orders_questions_from_easy_to_hard(): void
@@ -65,268 +64,109 @@ class QuizControllerTest extends TestCase
         $this->assertEqualsCanonicalizing($hard->pluck('id')->all(), $ids->slice(7, 3)->values()->all());
     }
 
-    public function test_start_backfills_when_a_difficulty_tier_is_short(): void
+    public function test_answer_accepts_a_null_chosen_option_as_a_timed_out_wrong_answer(): void
     {
-        Question::factory()->difficulty('easy')->count(9)->create();
-        Question::factory()->difficulty('hard')->create();
-
-        $response = $this->actingAs(User::factory()->create())->getJson('/api/quiz/start');
-
-        $response->assertOk();
-        $response->assertJsonCount(10, 'data');
-    }
-
-    public function test_start_filters_by_category(): void
-    {
-        Question::factory()->count(3)->create(['category' => 'Geography']);
-        Question::factory()->count(3)->create(['category' => 'History']);
-
-        $response = $this->actingAs(User::factory()->create())->getJson('/api/quiz/start?category=Geography');
-
-        $response->assertOk();
-        $response->assertJsonCount(3, 'data');
-    }
-
-    public function test_start_filters_by_country(): void
-    {
-        Question::factory()->count(3)->create(['country' => 'NL']);
-        Question::factory()->count(3)->create(['country' => 'HR']);
-
-        $response = $this->actingAs(User::factory()->create())->getJson('/api/quiz/start?country=HR');
-
-        $response->assertOk();
-        $response->assertJsonCount(3, 'data');
-    }
-
-    public function test_start_filters_by_category_and_country_together(): void
-    {
-        Question::factory()->create(['category' => 'Geography', 'country' => 'NL']);
-        Question::factory()->create(['category' => 'Geography', 'country' => 'HR']);
-        Question::factory()->create(['category' => 'History', 'country' => 'NL']);
-
-        $response = $this->actingAs(User::factory()->create())
-            ->getJson('/api/quiz/start?category=Geography&country=NL');
-
-        $response->assertOk();
-        $response->assertJsonCount(1, 'data');
-    }
-
-    public function test_submit_rejects_missing_answers(): void
-    {
-        $response = $this->actingAs(User::factory()->create())
-            ->postJson('/api/quiz/submit', []);
-
-        $response->assertUnprocessable();
-        $response->assertJsonValidationErrors(['answers']);
-    }
-
-    public function test_submit_rejects_invalid_chosen_option(): void
-    {
-        $question = Question::factory()->create();
-
-        $response = $this->actingAs(User::factory()->create())->postJson('/api/quiz/submit', [
-            'answers' => [
-                ['question_id' => $question->id, 'chosen_option' => 'E'],
-            ],
-        ]);
-
-        $response->assertUnprocessable();
-        $response->assertJsonValidationErrors(['answers.0.chosen_option']);
-    }
-
-    public function test_submit_rejects_unknown_question_id(): void
-    {
-        $response = $this->actingAs(User::factory()->create())->postJson('/api/quiz/submit', [
-            'answers' => [
-                ['question_id' => 999_999, 'chosen_option' => 'A'],
-            ],
-        ]);
-
-        $response->assertUnprocessable();
-        $response->assertJsonValidationErrors(['answers.0.question_id']);
-    }
-
-    public function test_submit_rejects_duplicate_question_ids(): void
-    {
-        $question = Question::factory()->create();
-
-        $response = $this->actingAs(User::factory()->create())->postJson('/api/quiz/submit', [
-            'answers' => [
-                ['question_id' => $question->id, 'chosen_option' => 'A'],
-                ['question_id' => $question->id, 'chosen_option' => 'B'],
-            ],
-        ]);
-
-        $response->assertUnprocessable();
-        $response->assertJsonValidationErrors(['answers.0.question_id']);
-    }
-
-    public function test_submit_scores_correct_answers_by_difficulty_and_ignores_client_supplied_correctness(): void
-    {
-        $easy = Question::factory()->difficulty('easy')->correctOption('A')->create();
-        $medium = Question::factory()->difficulty('medium')->correctOption('B')->create();
-        $hard = Question::factory()->difficulty('hard')->correctOption('C')->create();
-        $user = User::factory()->create(['total_score' => 5]);
-
-        $response = $this->actingAs($user)->postJson('/api/quiz/submit', [
-            'answers' => [
-                ['question_id' => $easy->id, 'chosen_option' => 'A', 'is_correct' => false],
-                ['question_id' => $medium->id, 'chosen_option' => 'B'],
-                ['question_id' => $hard->id, 'chosen_option' => 'C'],
-            ],
-        ]);
-
-        $response->assertOk();
-        $response->assertJson([
-            // 15 + 25 + 40 by difficulty, plus the 5-point streak bonus for
-            // all three answers being correct in a row.
-            'score' => 85,
-            'correct_answers' => 3,
-            'lives_remaining' => 3,
-        ]);
-
-        $this->assertDatabaseHas('results', [
-            'user_id' => $user->id,
-            'score' => 85,
-            'correct_answers' => 3,
-            'lives_remaining' => 3,
-        ]);
-        $this->assertSame(90, $user->refresh()->total_score);
-    }
-
-    public function test_submit_awards_a_streak_bonus_for_three_consecutive_correct_answers(): void
-    {
-        $questions = Question::factory()->difficulty('easy')->correctOption('A')->count(3)->create();
+        Question::factory()->correctOption('A')->create();
         $user = User::factory()->create();
+        $sessionId = $this->actingAs($user)->getJson('/api/quiz/start')->json('session_id');
 
-        $response = $this->actingAs($user)->postJson('/api/quiz/submit', [
-            'answers' => $questions->map(fn (Question $question) => [
-                'question_id' => $question->id,
-                'chosen_option' => 'A',
-            ])->all(),
-        ]);
+        $response = $this->actingAs($user)->postJson(
+            "/api/quiz/sessions/{$sessionId}/answer",
+            ['chosen_option' => null],
+        );
 
         $response->assertOk();
-        // 3 x 15 points for the easy questions, plus one 5-point streak bonus.
-        $response->assertJson(['score' => 50, 'correct_answers' => 3]);
+        $response->assertJson(['correct' => false, 'lives_remaining' => 2]);
     }
 
-    public function test_submit_resets_the_streak_after_a_wrong_answer(): void
+    public function test_answer_awards_a_streak_bonus_for_three_consecutive_correct_answers(): void
+    {
+        Question::factory()->difficulty('easy')->correctOption('A')->count(3)->create();
+        $user = User::factory()->create();
+        $sessionId = $this->actingAs($user)->getJson('/api/quiz/start')->json('session_id');
+
+        $last = $this->answerAll($user, $sessionId, count: 3, chosenOption: 'A');
+
+        // 3 x 15 points for the easy questions, plus one 5-point streak bonus.
+        $last->assertJson(['finished' => true, 'result' => ['score' => 50, 'correct_answers' => 3]]);
+    }
+
+    public function test_answer_resets_the_streak_after_a_wrong_answer(): void
     {
         $questions = Question::factory()->difficulty('easy')->correctOption('A')->count(7)->create();
         $user = User::factory()->create();
+        $sessionId = $this->actingAs($user)->getJson('/api/quiz/start')->json('session_id');
 
-        $answers = $questions->map(fn (Question $question, int $index) => [
-            'question_id' => $question->id,
-            'chosen_option' => $index === 3 ? 'B' : 'A',
-        ])->all();
+        $last = null;
+        foreach ($questions as $index => $question) {
+            $chosen = $index === 3 ? 'B' : 'A';
+            $last = $this->actingAs($user)->postJson(
+                "/api/quiz/sessions/{$sessionId}/answer",
+                ['chosen_option' => $chosen],
+            );
+        }
 
-        $response = $this->actingAs($user)->postJson('/api/quiz/submit', ['answers' => $answers]);
-
-        $response->assertOk();
         // Two streaks of 3 correct answers (before and after the wrong
         // answer at index 3), each earning the 5-point bonus: 6 x 15 + 2 x 5.
-        $response->assertJson(['score' => 100, 'correct_answers' => 6, 'lives_remaining' => 2]);
-    }
-
-    public function test_submit_rejects_a_missing_chosen_option_key(): void
-    {
-        $question = Question::factory()->create();
-
-        $response = $this->actingAs(User::factory()->create())->postJson('/api/quiz/submit', [
-            'answers' => [
-                ['question_id' => $question->id],
-            ],
+        $last->assertJson([
+            'finished' => true,
+            'result' => ['score' => 100, 'correct_answers' => 6, 'lives_remaining' => 2],
         ]);
-
-        $response->assertUnprocessable();
-        $response->assertJsonValidationErrors(['answers.0.chosen_option']);
     }
 
-    public function test_submit_treats_a_null_chosen_option_as_a_timed_out_wrong_answer(): void
+    public function test_daily_gives_different_questions_to_different_users(): void
     {
-        $question = Question::factory()->correctOption('A')->create();
+        Question::factory()->difficulty('easy')->count(8)->create();
+        Question::factory()->difficulty('medium')->count(6)->create();
+        Question::factory()->difficulty('hard')->count(6)->create();
+
+        $first = $this->actingAs(User::factory()->create())->getJson('/api/quiz/daily');
+        $second = $this->actingAs(User::factory()->create())->getJson('/api/quiz/daily');
+
+        $firstIds = collect($first->json('data'))->pluck('id')->sort()->values();
+        $secondIds = collect($second->json('data'))->pluck('id')->sort()->values();
+
+        $this->assertNotSame($firstIds->all(), $secondIds->all());
+    }
+
+    public function test_daily_reports_already_completed_with_result_and_reset_time(): void
+    {
+        Question::factory()->difficulty('easy')->correctOption('A')->create();
         $user = User::factory()->create();
 
-        $response = $this->actingAs($user)->postJson('/api/quiz/submit', [
-            'answers' => [
-                ['question_id' => $question->id, 'chosen_option' => null],
-            ],
-        ]);
+        $start = $this->actingAs($user)->getJson('/api/quiz/daily');
+        $start->assertJsonPath('already_completed', false);
+        $start->assertJsonPath('completed_result', null);
+
+        $sessionId = $start->json('session_id');
+        $this->actingAs($user)->postJson("/api/quiz/sessions/{$sessionId}/answer", ['chosen_option' => 'A']);
+
+        $response = $this->actingAs($user)->getJson('/api/quiz/daily');
 
         $response->assertOk();
-        $response->assertJson([
-            'score' => 0,
-            'correct_answers' => 0,
-            'lives_remaining' => 2,
-        ]);
+        $response->assertJsonPath('already_completed', true);
+        // 15 points for the easy question, plus the 20-point daily bonus.
+        $response->assertJsonPath('completed_result.score', 35);
+        $this->assertNotNull($response->json('completed_result.completed_at'));
+        $this->assertNotNull($response->json('resets_at'));
+        $this->assertSame(35, $user->refresh()->total_score);
     }
 
-    public function test_submit_deducts_a_life_per_wrong_answer(): void
+    /**
+     * Answer the given user's active session `count` times with the same
+     * chosen option and return the final response.
+     */
+    private function answerAll(User $user, int $sessionId, int $count, string $chosenOption): TestResponse
     {
-        $question = Question::factory()->correctOption('A')->create();
-        $user = User::factory()->create();
+        $response = null;
 
-        $response = $this->actingAs($user)->postJson('/api/quiz/submit', [
-            'answers' => [
-                ['question_id' => $question->id, 'chosen_option' => 'B'],
-            ],
-        ]);
+        for ($i = 0; $i < $count; $i++) {
+            $response = $this->actingAs($user)->postJson(
+                "/api/quiz/sessions/{$sessionId}/answer",
+                ['chosen_option' => $chosenOption],
+            );
+        }
 
-        $response->assertOk();
-        $response->assertJson([
-            'score' => 0,
-            'correct_answers' => 0,
-            'lives_remaining' => 2,
-        ]);
-    }
-
-    public function test_submit_stops_scoring_once_lives_reach_zero(): void
-    {
-        $wrongAnswers = Question::factory()->correctOption('A')->count(3)->create();
-        $uncountedCorrect = Question::factory()->difficulty('hard')->correctOption('A')->create();
-        $user = User::factory()->create();
-
-        $answers = $wrongAnswers->map(fn (Question $question) => [
-            'question_id' => $question->id,
-            'chosen_option' => 'B',
-        ])->push([
-            'question_id' => $uncountedCorrect->id,
-            'chosen_option' => 'A',
-        ])->all();
-
-        $response = $this->actingAs($user)->postJson('/api/quiz/submit', ['answers' => $answers]);
-
-        $response->assertOk();
-        $response->assertJson([
-            'score' => 0,
-            'correct_answers' => 0,
-            'lives_remaining' => 0,
-        ]);
-        $this->assertSame(0, $user->refresh()->total_score);
-    }
-
-    public function test_submit_counts_correct_answers_before_lives_run_out(): void
-    {
-        $correct = Question::factory()->difficulty('easy')->correctOption('A')->create();
-        $wrongAnswers = Question::factory()->correctOption('A')->count(3)->create();
-        $user = User::factory()->create();
-
-        $answers = [[
-            'question_id' => $correct->id,
-            'chosen_option' => 'A',
-        ], ...$wrongAnswers->map(fn (Question $question) => [
-            'question_id' => $question->id,
-            'chosen_option' => 'B',
-        ])->all()];
-
-        $response = $this->actingAs($user)->postJson('/api/quiz/submit', ['answers' => $answers]);
-
-        $response->assertOk();
-        $response->assertJson([
-            'score' => 15,
-            'correct_answers' => 1,
-            'lives_remaining' => 0,
-        ]);
+        return $response;
     }
 }

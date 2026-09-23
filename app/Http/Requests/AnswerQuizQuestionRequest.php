@@ -14,7 +14,10 @@ class AnswerQuizQuestionRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'chosen_option' => ['required', 'string', 'in:A,B,C,D'],
+            // Nullable so the client can explicitly submit "no answer" once
+            // its local countdown runs out, without needing a placeholder
+            // option; the server independently re-checks the timeout too.
+            'chosen_option' => ['present', 'nullable', 'string', 'in:A,B,C,D'],
         ];
     }
 }
