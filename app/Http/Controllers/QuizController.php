@@ -2,78 +2,57 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Requests\SubmitQuizAnswersRequest;
 use App\Http\Requests\AnswerQuizQuestionRequest;
 use App\Http\Resources\QuestionResource;
-use App\Services\QuizQuestionSelector;
 use App\Models\Question;
 use App\Models\QuizSession;
 use App\Services\GamificationService;
-use App\Services\QuizScoringService;
 use App\Services\QuizSessionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 /**
- * Starts a quiz and scores its submitted answers.
+ * Runs a stateful quiz session: `start`/`startDaily` pick the 10 questions
+ * and open a session, `answer` scores one question at a time against a
+ * server-tracked per-question timer.
  */
 class QuizController extends Controller
 {
     public function __construct(
-        private QuizQuestionSelector $questionSelector,
-        private QuizScoringService $scoringService,
         private QuizSessionService $sessionService,
         private GamificationService $gamification,
     ) {}
 
     /**
-     * Start a new quiz session by returning 10 questions ordered from easy
-     * to hard, optionally scoped to a `?category=` and/or `?country=`
-     * chosen by the player.
-     *
-     * The response never includes `correct_option`; the client answers
-     * blind and the server re-checks every answer on submit.
+     * Start a new quiz session, optionally scoped to a `?category=`
+     * (must be unlocked for the player's level) and/or `?country=`.
      */
     public function start(Request $request): JsonResponse
     {
-        $session = $this->sessionService->start($request->user(), false, $request->query('category'));
-        $questions = Question::whereIn('id', $session->question_ids)
-            ->get()
-            ->sortBy(fn (Question $question) => array_search($question->id, $session->question_ids))
-            ->values();
-    public function start(Request $request): AnonymousResourceCollection
-    {
-        $questions = $this->questionSelector->select(
-            $request->filled('category') ? $request->string('category')->toString() : null,
-            $request->filled('country') ? $request->string('country')->toString() : null,
+        $session = $this->sessionService->start(
+            $request->user(),
+            daily: false,
+            category: $request->filled('category') ? $request->string('category')->toString() : null,
+            country: $request->filled('country') ? $request->string('country')->toString() : null,
         );
 
-        return response()->json([
-            'data' => QuestionResource::collection($questions),
-            'session_id' => $session->id,
-            'timer_seconds' => GamificationService::TIMER_SECONDS,
-            'gamification' => $this->gamification->summary($request->user()),
-        ]);
+        return $this->sessionResponse($session, $request);
     }
 
+    /**
+     * Start (or resume) today's daily challenge session for the player.
+     */
     public function startDaily(Request $request): JsonResponse
     {
-        $session = $this->sessionService->start($request->user(), true);
-        $questions = Question::whereIn('id', $session->question_ids)
-            ->get()
-            ->sortBy(fn (Question $question) => array_search($question->id, $session->question_ids))
-            ->values();
+        $session = $this->sessionService->start($request->user(), daily: true);
 
-        return response()->json([
-            'data' => QuestionResource::collection($questions),
-            'session_id' => $session->id,
-            'timer_seconds' => GamificationService::TIMER_SECONDS,
-            'daily' => true,
-            'gamification' => $this->gamification->summary($request->user()),
-        ]);
+        return $this->sessionResponse($session, $request, daily: true);
     }
 
+    /**
+     * Score one answer within an active session and return the next
+     * question, or the final result once the session ends.
+     */
     public function answer(AnswerQuizQuestionRequest $request, QuizSession $quizSession): JsonResponse
     {
         $outcome = $this->sessionService->answer(
@@ -101,17 +80,35 @@ class QuizController extends Controller
         ]);
     }
 
-    /**
-     * Score a submitted batch of answers and persist the result.
-     */
-    public function submit(SubmitQuizAnswersRequest $request): JsonResponse
+    private function sessionResponse(QuizSession $session, Request $request, bool $daily = false): JsonResponse
     {
-        $result = $this->scoringService->score($request->user(), $request->validated('answers'));
+        $questions = Question::whereIn('id', $session->question_ids)
+            ->get()
+            ->sortBy(fn (Question $question) => array_search($question->id, $session->question_ids))
+            ->values();
 
-        return response()->json([
-            'score' => $result->score,
-            'correct_answers' => $result->correct_answers,
-            'lives_remaining' => $result->lives_remaining,
-        ]);
+        $payload = [
+            'data' => QuestionResource::collection($questions),
+            'session_id' => $session->id,
+            'timer_seconds' => GamificationService::TIMER_SECONDS,
+            'gamification' => $this->gamification->summary($request->user()),
+        ];
+
+        if ($daily) {
+            $alreadyCompleted = $session->status === 'completed';
+            $result = $alreadyCompleted ? $session->result : null;
+
+            $payload['daily'] = true;
+            $payload['already_completed'] = $alreadyCompleted;
+            $payload['completed_result'] = $result ? [
+                'score' => $result->score,
+                'correct_answers' => $result->correct_answers,
+                'lives_remaining' => $result->lives_remaining,
+                'completed_at' => $result->created_at->toIso8601String(),
+            ] : null;
+            $payload['resets_at'] = $this->sessionService->dailyResetsAt()->toIso8601String();
+        }
+
+        return response()->json($payload);
     }
 }

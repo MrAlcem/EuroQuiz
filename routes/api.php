@@ -3,7 +3,6 @@
 use App\Http\Controllers\Api\Admin\QuestionController;
 use App\Http\Controllers\Api\Admin\UserController;
 use App\Http\Controllers\Api\AuthController;
-use App\Http\Controllers\Api\DailyChallengeController;
 use App\Http\Controllers\Api\LeaderboardController;
 use App\Http\Controllers\Api\MfaController;
 use App\Http\Controllers\Api\ProfileController;
@@ -35,9 +34,6 @@ Route::middleware('auth:sanctum')->prefix('quiz')->group(function () {
     Route::get('/start', [QuizController::class, 'start']);
     Route::get('/daily', [QuizController::class, 'startDaily']);
     Route::post('/sessions/{quizSession}/answer', [QuizController::class, 'answer']);
-    Route::post('/submit', [QuizController::class, 'submit']);
-    Route::get('/daily', [DailyChallengeController::class, 'show']);
-    Route::post('/daily/submit', [DailyChallengeController::class, 'submit']);
 });
 
 Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function () {

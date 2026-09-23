@@ -3,18 +3,20 @@
 namespace App\Services;
 
 use App\Models\User;
+use App\UserLevel;
 
 class GamificationService
 {
     public const TIMER_SECONDS = 30;
 
+    /**
+     * Delegates to `UserLevel`, the single source of truth for a user's
+     * level (Beginner/Pro/Expert, based on total_score) shared with the
+     * profile, leaderboard and admin endpoints.
+     */
     public function level(User $user): string
     {
-        return match (true) {
-            $user->xp >= 2500 => 'Expert',
-            $user->xp >= 1000 => 'Pro',
-            default => 'Beginner',
-        };
+        return UserLevel::fromScore($user->total_score)->name;
     }
 
     /** @return array<int, string> */
