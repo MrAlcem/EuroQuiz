@@ -20,10 +20,19 @@ use Illuminate\Support\Facades\DB;
  * A `null` `chosen_option` means the client's per-question timer ran
  * out before an option was picked; it never matches `correct_option`
  * and so is scored exactly like any other wrong answer.
+ *
+ * A run of `STREAK_LENGTH` consecutive correct answers earns a flat
+ * `STREAK_BONUS` on top of the per-question points, and again for every
+ * further `STREAK_LENGTH` correct answers the streak keeps going. A
+ * wrong (or timed-out) answer resets the streak to zero.
  */
 class QuizScoringService
 {
     private const STARTING_LIVES = 3;
+
+    private const STREAK_LENGTH = 3;
+
+    private const STREAK_BONUS = 5;
 
     /**
      * @var array<string, int>
@@ -48,6 +57,7 @@ class QuizScoringService
         $lives = self::STARTING_LIVES;
         $score = 0;
         $correctAnswers = 0;
+        $streak = 0;
 
         foreach ($answers as $answer) {
             if ($lives <= 0) {
@@ -59,8 +69,14 @@ class QuizScoringService
             if ($question->correct_option === $answer['chosen_option']) {
                 $score += self::POINTS_BY_DIFFICULTY[$question->difficulty];
                 $correctAnswers++;
+                $streak++;
+
+                if ($streak % self::STREAK_LENGTH === 0) {
+                    $score += self::STREAK_BONUS;
+                }
             } else {
                 $lives--;
+                $streak = 0;
             }
         }
 

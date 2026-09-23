@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\SubmitQuizAnswersRequest;
 use App\Http\Resources\QuestionResource;
-use App\Models\Question;
+use App\Services\QuizQuestionSelector;
 use App\Services\QuizScoringService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -15,23 +15,25 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
  */
 class QuizController extends Controller
 {
-    public function __construct(private QuizScoringService $scoringService) {}
+    public function __construct(
+        private QuizQuestionSelector $questionSelector,
+        private QuizScoringService $scoringService,
+    ) {}
 
     /**
-     * Start a new quiz session by returning 10 random questions, optionally
-     * scoped to a `?category=` and/or `?country=` chosen by the player.
+     * Start a new quiz session by returning 10 questions ordered from easy
+     * to hard, optionally scoped to a `?category=` and/or `?country=`
+     * chosen by the player.
      *
      * The response never includes `correct_option`; the client answers
      * blind and the server re-checks every answer on submit.
      */
     public function start(Request $request): AnonymousResourceCollection
     {
-        $questions = Question::query()
-            ->when($request->filled('category'), fn ($query) => $query->where('category', $request->string('category')))
-            ->when($request->filled('country'), fn ($query) => $query->where('country', $request->string('country')))
-            ->inRandomOrder()
-            ->limit(10)
-            ->get();
+        $questions = $this->questionSelector->select(
+            $request->filled('category') ? $request->string('category')->toString() : null,
+            $request->filled('country') ? $request->string('country')->toString() : null,
+        );
 
         return QuestionResource::collection($questions);
     }
