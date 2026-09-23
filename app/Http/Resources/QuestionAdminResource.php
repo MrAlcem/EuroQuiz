@@ -31,6 +31,7 @@ class QuestionAdminResource extends JsonResource
             'category' => $this->category,
             'country' => $this->country,
             'difficulty' => $this->difficulty,
+            'time_limit_seconds' => $this->time_limit_seconds,
         ];
     }
 }

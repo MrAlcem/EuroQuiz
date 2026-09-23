@@ -35,6 +35,45 @@ class QuestionControllerTest extends TestCase
         $response->assertJsonPath('data.0.correct_option', 'B');
     }
 
+    public function test_index_filters_by_category(): void
+    {
+        Question::factory()->create(['category' => 'Geography']);
+        Question::factory()->create(['category' => 'History']);
+
+        $response = $this->actingAs(User::factory()->admin()->create())
+            ->getJson('/api/admin/questions?category=Geography');
+
+        $response->assertOk();
+        $this->assertCount(1, $response->json('data'));
+        $response->assertJsonPath('data.0.category', 'Geography');
+    }
+
+    public function test_index_filters_by_country(): void
+    {
+        Question::factory()->create(['country' => 'NL']);
+        Question::factory()->create(['country' => 'HR']);
+
+        $response = $this->actingAs(User::factory()->admin()->create())
+            ->getJson('/api/admin/questions?country=HR');
+
+        $response->assertOk();
+        $this->assertCount(1, $response->json('data'));
+        $response->assertJsonPath('data.0.country', 'HR');
+    }
+
+    public function test_index_filters_by_category_and_country_together(): void
+    {
+        Question::factory()->create(['category' => 'Geography', 'country' => 'NL']);
+        Question::factory()->create(['category' => 'Geography', 'country' => 'HR']);
+        Question::factory()->create(['category' => 'History', 'country' => 'NL']);
+
+        $response = $this->actingAs(User::factory()->admin()->create())
+            ->getJson('/api/admin/questions?category=Geography&country=NL');
+
+        $response->assertOk();
+        $this->assertCount(1, $response->json('data'));
+    }
+
     public function test_store_creates_a_question(): void
     {
         $payload = [
@@ -47,6 +86,7 @@ class QuestionControllerTest extends TestCase
             'category' => 'Geography',
             'country' => 'NL',
             'difficulty' => 'easy',
+            'time_limit_seconds' => 20,
         ];
 
         $response = $this->actingAs(User::factory()->admin()->create())
@@ -54,7 +94,51 @@ class QuestionControllerTest extends TestCase
 
         $response->assertCreated();
         $response->assertJsonPath('data.correct_option', 'B');
+        $response->assertJsonPath('data.time_limit_seconds', 20);
         $this->assertDatabaseHas('questions', ['question_text' => $payload['question_text']]);
+    }
+
+    public function test_store_defaults_the_time_limit_when_omitted(): void
+    {
+        $payload = [
+            'question_text' => 'Question?',
+            'option_a' => 'A',
+            'option_b' => 'B',
+            'option_c' => 'C',
+            'option_d' => 'D',
+            'correct_option' => 'A',
+            'category' => 'General',
+            'country' => 'NL',
+            'difficulty' => 'easy',
+        ];
+
+        $response = $this->actingAs(User::factory()->admin()->create())
+            ->postJson('/api/admin/questions', $payload);
+
+        $response->assertCreated();
+        $response->assertJsonPath('data.time_limit_seconds', 15);
+    }
+
+    public function test_store_rejects_a_time_limit_outside_the_allowed_range(): void
+    {
+        $payload = [
+            'question_text' => 'Question?',
+            'option_a' => 'A',
+            'option_b' => 'B',
+            'option_c' => 'C',
+            'option_d' => 'D',
+            'correct_option' => 'A',
+            'category' => 'General',
+            'country' => 'NL',
+            'difficulty' => 'easy',
+            'time_limit_seconds' => 200,
+        ];
+
+        $response = $this->actingAs(User::factory()->admin()->create())
+            ->postJson('/api/admin/questions', $payload);
+
+        $response->assertUnprocessable();
+        $response->assertJsonValidationErrors(['time_limit_seconds']);
     }
 
     public function test_store_rejects_non_admin_users(): void
@@ -92,6 +176,18 @@ class QuestionControllerTest extends TestCase
         $response->assertOk();
         $response->assertJsonPath('data.question_text', 'Updated text?');
         $this->assertDatabaseHas('questions', ['id' => $question->id, 'question_text' => 'Updated text?']);
+    }
+
+    public function test_update_edits_the_time_limit(): void
+    {
+        $question = Question::factory()->timeLimit(15)->create();
+
+        $response = $this->actingAs(User::factory()->admin()->create())
+            ->putJson("/api/admin/questions/{$question->id}", ['time_limit_seconds' => 30]);
+
+        $response->assertOk();
+        $response->assertJsonPath('data.time_limit_seconds', 30);
+        $this->assertDatabaseHas('questions', ['id' => $question->id, 'time_limit_seconds' => 30]);
     }
 
     public function test_destroy_deletes_a_question(): void

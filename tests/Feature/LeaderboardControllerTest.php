@@ -35,6 +35,18 @@ class LeaderboardControllerTest extends TestCase
         $response->assertJsonPath('you.score', 50);
     }
 
+    public function test_index_reports_each_entrys_level(): void
+    {
+        User::factory()->create(['name' => 'Expert Player', 'total_score' => 300]);
+        $me = User::factory()->create(['name' => 'Me', 'total_score' => 50]);
+
+        $response = $this->actingAs($me)->getJson('/api/leaderboard');
+
+        $response->assertOk();
+        $response->assertJsonPath('data.0.level', 'expert');
+        $response->assertJsonPath('you.level', 'beginner');
+    }
+
     public function test_index_limits_to_top_twenty(): void
     {
         User::factory()->count(25)->create();

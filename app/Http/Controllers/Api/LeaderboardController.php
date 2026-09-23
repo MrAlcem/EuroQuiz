@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\LeaderboardEntryResource;
 use App\Models\User;
+use App\UserLevel;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
@@ -41,7 +42,7 @@ class LeaderboardController extends Controller
      * Compute the given user's own rank and score, regardless of whether
      * they made the top of the leaderboard.
      *
-     * @return array{rank: int, name: string, score: int}
+     * @return array{rank: int, name: string, score: int, level: string}
      */
     private function rankFor(User $user): array
     {
@@ -53,6 +54,7 @@ class LeaderboardController extends Controller
             'rank' => $rank,
             'name' => $user->name,
             'score' => $user->total_score,
+            'level' => UserLevel::fromScore($user->total_score)->value,
         ];
     }
 }

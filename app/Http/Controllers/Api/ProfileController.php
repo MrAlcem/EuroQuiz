@@ -26,6 +26,8 @@ class ProfileController extends Controller
             'email' => $user->email,
             'best_score' => $results->max('score') ?? 0,
             'gamification' => $gamification->summary($user),
+            'total_score' => $user->total_score,
+            'level' => $user->level()->value,
             'history' => ResultResource::collection($results),
         ]);
     }

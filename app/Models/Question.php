@@ -19,11 +19,19 @@ use Illuminate\Database\Eloquent\Model;
  * @property string $category
  * @property string $country
  * @property string $difficulty
+ * @property int $time_limit_seconds
  */
-#[Fillable(['question_text', 'option_a', 'option_b', 'option_c', 'option_d', 'correct_option', 'category', 'country', 'difficulty'])]
+#[Fillable(['question_text', 'option_a', 'option_b', 'option_c', 'option_d', 'correct_option', 'category', 'country', 'difficulty', 'time_limit_seconds'])]
 #[Hidden(['correct_option'])]
 class Question extends Model
 {
     /** @use HasFactory<QuestionFactory> */
     use HasFactory;
+
+    /**
+     * @var array<string, mixed>
+     */
+    protected $attributes = [
+        'time_limit_seconds' => 15,
+    ];
 }

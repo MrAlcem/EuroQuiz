@@ -26,7 +26,8 @@ class QuizController extends Controller
     ) {}
 
     /**
-     * Start a new quiz session by returning 10 random questions.
+     * Start a new quiz session by returning 10 random questions, optionally
+     * scoped to a `?category=` and/or `?country=` chosen by the player.
      *
      * The response never includes `correct_option`; the client answers
      * blind and the server re-checks every answer on submit.
@@ -38,6 +39,14 @@ class QuizController extends Controller
             ->get()
             ->sortBy(fn (Question $question) => array_search($question->id, $session->question_ids))
             ->values();
+    public function start(Request $request): AnonymousResourceCollection
+    {
+        $questions = Question::query()
+            ->when($request->filled('category'), fn ($query) => $query->where('category', $request->string('category')))
+            ->when($request->filled('country'), fn ($query) => $query->where('country', $request->string('country')))
+            ->inRandomOrder()
+            ->limit(10)
+            ->get();
 
         return response()->json([
             'data' => QuestionResource::collection($questions),

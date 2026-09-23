@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\Admin\QuestionController;
+use App\Http\Controllers\Api\Admin\UserController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\LeaderboardController;
 use App\Http\Controllers\Api\MfaController;
@@ -38,4 +39,5 @@ Route::middleware('auth:sanctum')->prefix('quiz')->group(function () {
 
 Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function () {
     Route::apiResource('questions', QuestionController::class);
+    Route::get('/users', [UserController::class, 'index']);
 });
