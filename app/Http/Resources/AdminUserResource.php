@@ -3,6 +3,7 @@
 namespace App\Http\Resources;
 
 use App\Models\User;
+use App\UserLevel;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Carbon;
@@ -27,6 +28,7 @@ class AdminUserResource extends JsonResource
             'email' => $this->email,
             'role' => $this->role,
             'total_score' => $this->total_score,
+            'level' => UserLevel::fromScore($this->total_score)->value,
             'quizzes_played' => $this->results_count,
             'last_active' => $this->results_max_created_at
                 ? Carbon::parse($this->results_max_created_at)->toDateString()

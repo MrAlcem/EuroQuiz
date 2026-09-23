@@ -23,6 +23,8 @@ class ResultResource extends JsonResource
             'score' => $this->score,
             'correct_answers' => $this->correct_answers,
             'lives_remaining' => $this->lives_remaining,
+            'xp_earned' => $this->xp_earned,
+            'daily' => $this->is_daily,
             'date' => $this->created_at->toDateString(),
         ];
     }

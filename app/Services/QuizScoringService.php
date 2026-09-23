@@ -89,6 +89,7 @@ class QuizScoringService
             ]);
 
             $user->increment('total_score', $score);
+            $user->increment('xp', $score);
 
             return $result;
         });

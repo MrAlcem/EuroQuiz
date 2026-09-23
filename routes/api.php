@@ -32,6 +32,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
 Route::middleware('auth:sanctum')->prefix('quiz')->group(function () {
     Route::get('/start', [QuizController::class, 'start']);
+    Route::get('/daily', [QuizController::class, 'startDaily']);
+    Route::post('/sessions/{quizSession}/answer', [QuizController::class, 'answer']);
     Route::post('/submit', [QuizController::class, 'submit']);
 });
 

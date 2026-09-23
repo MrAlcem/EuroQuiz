@@ -33,6 +33,17 @@ class ProfileControllerTest extends TestCase
         $this->assertCount(2, $response->json('history'));
     }
 
+    public function test_show_returns_the_users_level_based_on_total_score(): void
+    {
+        $user = User::factory()->create(['total_score' => 150]);
+
+        $response = $this->actingAs($user)->getJson('/api/user/profile');
+
+        $response->assertOk();
+        $response->assertJsonPath('total_score', 150);
+        $response->assertJsonPath('level', 'pro');
+    }
+
     public function test_show_only_returns_the_authenticated_users_own_results(): void
     {
         $user = User::factory()->create();
