@@ -49,6 +49,33 @@ class QuizControllerTest extends TestCase
         $response->assertJsonPath('data.0.time_limit_seconds', 20);
     }
 
+    public function test_start_orders_questions_from_easy_to_hard(): void
+    {
+        $easy = Question::factory()->difficulty('easy')->count(4)->create();
+        $medium = Question::factory()->difficulty('medium')->count(3)->create();
+        $hard = Question::factory()->difficulty('hard')->count(3)->create();
+
+        $response = $this->actingAs(User::factory()->create())->getJson('/api/quiz/start');
+
+        $response->assertOk();
+        $ids = collect($response->json('data'))->pluck('id');
+
+        $this->assertEqualsCanonicalizing($easy->pluck('id')->all(), $ids->slice(0, 4)->values()->all());
+        $this->assertEqualsCanonicalizing($medium->pluck('id')->all(), $ids->slice(4, 3)->values()->all());
+        $this->assertEqualsCanonicalizing($hard->pluck('id')->all(), $ids->slice(7, 3)->values()->all());
+    }
+
+    public function test_start_backfills_when_a_difficulty_tier_is_short(): void
+    {
+        Question::factory()->difficulty('easy')->count(9)->create();
+        Question::factory()->difficulty('hard')->create();
+
+        $response = $this->actingAs(User::factory()->create())->getJson('/api/quiz/start');
+
+        $response->assertOk();
+        $response->assertJsonCount(10, 'data');
+    }
+
     public function test_start_filters_by_category(): void
     {
         Question::factory()->count(3)->create(['category' => 'Geography']);
@@ -151,18 +178,55 @@ class QuizControllerTest extends TestCase
 
         $response->assertOk();
         $response->assertJson([
-            'score' => 45,
+            // 15 + 25 + 40 by difficulty, plus the 5-point streak bonus for
+            // all three answers being correct in a row.
+            'score' => 85,
             'correct_answers' => 3,
             'lives_remaining' => 3,
         ]);
 
         $this->assertDatabaseHas('results', [
             'user_id' => $user->id,
-            'score' => 45,
+            'score' => 85,
             'correct_answers' => 3,
             'lives_remaining' => 3,
         ]);
-        $this->assertSame(50, $user->refresh()->total_score);
+        $this->assertSame(90, $user->refresh()->total_score);
+    }
+
+    public function test_submit_awards_a_streak_bonus_for_three_consecutive_correct_answers(): void
+    {
+        $questions = Question::factory()->difficulty('easy')->correctOption('A')->count(3)->create();
+        $user = User::factory()->create();
+
+        $response = $this->actingAs($user)->postJson('/api/quiz/submit', [
+            'answers' => $questions->map(fn (Question $question) => [
+                'question_id' => $question->id,
+                'chosen_option' => 'A',
+            ])->all(),
+        ]);
+
+        $response->assertOk();
+        // 3 x 15 points for the easy questions, plus one 5-point streak bonus.
+        $response->assertJson(['score' => 50, 'correct_answers' => 3]);
+    }
+
+    public function test_submit_resets_the_streak_after_a_wrong_answer(): void
+    {
+        $questions = Question::factory()->difficulty('easy')->correctOption('A')->count(7)->create();
+        $user = User::factory()->create();
+
+        $answers = $questions->map(fn (Question $question, int $index) => [
+            'question_id' => $question->id,
+            'chosen_option' => $index === 3 ? 'B' : 'A',
+        ])->all();
+
+        $response = $this->actingAs($user)->postJson('/api/quiz/submit', ['answers' => $answers]);
+
+        $response->assertOk();
+        // Two streaks of 3 correct answers (before and after the wrong
+        // answer at index 3), each earning the 5-point bonus: 6 x 15 + 2 x 5.
+        $response->assertJson(['score' => 100, 'correct_answers' => 6, 'lives_remaining' => 2]);
     }
 
     public function test_submit_rejects_a_missing_chosen_option_key(): void
@@ -260,7 +324,7 @@ class QuizControllerTest extends TestCase
 
         $response->assertOk();
         $response->assertJson([
-            'score' => 10,
+            'score' => 15,
             'correct_answers' => 1,
             'lives_remaining' => 0,
         ]);
