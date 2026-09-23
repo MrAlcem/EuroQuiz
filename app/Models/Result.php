@@ -15,11 +15,16 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int $correct_answers
  * @property int $lives_remaining
  */
-#[Fillable(['user_id', 'score', 'correct_answers', 'lives_remaining'])]
+#[Fillable(['user_id', 'quiz_session_id', 'score', 'xp_earned', 'is_daily', 'correct_answers', 'lives_remaining'])]
 class Result extends Model
 {
     /** @use HasFactory<ResultFactory> */
     use HasFactory;
+
+    protected function casts(): array
+    {
+        return ['is_daily' => 'boolean'];
+    }
 
     /**
      * @return BelongsTo<User, $this>

@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\Question;
 use App\Models\User;
+use App\UserRole;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
@@ -18,16 +19,20 @@ class DatabaseSeeder extends Seeder
     {
         // User::factory(10)->create();
 
-        User::factory()->create([
+        User::updateOrCreate(['email' => 'test@example.com'], [
             'name' => 'Test User',
-            'email' => 'test@example.com',
+            'role' => UserRole::User,
+            'password' => bcrypt('password'),
         ]);
 
-        User::factory()->admin()->create([
+        User::updateOrCreate(['email' => 'admin@example.com'], [
             'name' => 'Admin User',
-            'email' => 'admin@example.com',
+            'role' => UserRole::Admin,
+            'password' => bcrypt('password'),
         ]);
 
-        Question::factory(40)->create();
+        if (Question::count() === 0) {
+            Question::factory(40)->create();
+        }
     }
 }
