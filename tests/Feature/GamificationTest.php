@@ -23,8 +23,21 @@ class GamificationTest extends TestCase
             'data', 'session_id', 'timer_seconds',
             'gamification' => ['level', 'xp', 'unlocked_categories'],
         ]);
-        $response->assertJsonPath('timer_seconds', 30);
+        // The default per-question time limit (Question factory), not the
+        // old fixed 30s constant - the server enforces it per question.
+        $response->assertJsonPath('timer_seconds', 15);
         $response->assertJsonPath('gamification.level', 'Beginner');
+    }
+
+    public function test_start_reports_the_first_questions_own_time_limit(): void
+    {
+        Question::factory()->timeLimit(20)->count(10)->create();
+        $user = User::factory()->create();
+
+        $response = $this->actingAs($user)->getJson('/api/quiz/start');
+
+        $response->assertOk();
+        $response->assertJsonPath('timer_seconds', 20);
     }
 
     public function test_session_answer_scores_and_returns_the_next_question(): void
