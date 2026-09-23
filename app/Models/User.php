@@ -3,6 +3,7 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\UserLevel;
 use App\UserRole;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -31,6 +32,14 @@ class User extends Authenticatable
     public function isAdmin(): bool
     {
         return $this->role === UserRole::Admin;
+    }
+
+    /**
+     * The level (Beginner/Pro/Expert) the user has reached for their total score.
+     */
+    public function level(): UserLevel
+    {
+        return UserLevel::fromScore($this->total_score);
     }
 
     /**

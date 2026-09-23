@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\UserLevel;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -25,6 +26,7 @@ class LeaderboardEntryResource extends JsonResource
             'rank' => $this->rank,
             'name' => $this->name,
             'score' => $this->score,
+            'level' => UserLevel::fromScore($this->score)->value,
         ];
     }
 }
