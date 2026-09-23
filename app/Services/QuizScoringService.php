@@ -47,8 +47,10 @@ class QuizScoringService
      * Score the given answers for the user and persist a `Result`.
      *
      * @param  array<int, array{question_id: int, chosen_option: ?string}>  $answers
+     * @param  int  $bonus  A flat number of extra points to add on top of the
+     *                      scored total, e.g. for completing a daily challenge.
      */
-    public function score(User $user, array $answers): Result
+    public function score(User $user, array $answers, int $bonus = 0): Result
     {
         $questions = Question::whereIn('id', array_column($answers, 'question_id'))
             ->get()
@@ -79,6 +81,8 @@ class QuizScoringService
                 $streak = 0;
             }
         }
+
+        $score += $bonus;
 
         return DB::transaction(function () use ($user, $score, $correctAnswers, $lives) {
             $result = Result::create([
