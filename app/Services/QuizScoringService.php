@@ -29,9 +29,9 @@ class QuizScoringService
      * @var array<string, int>
      */
     private const POINTS_BY_DIFFICULTY = [
-        'easy' => 10,
-        'medium' => 15,
-        'hard' => 20,
+        'easy' => 15,
+        'medium' => 25,
+        'hard' => 40,
     ];
 
     /**

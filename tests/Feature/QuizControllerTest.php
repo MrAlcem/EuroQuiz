@@ -151,18 +151,18 @@ class QuizControllerTest extends TestCase
 
         $response->assertOk();
         $response->assertJson([
-            'score' => 45,
+            'score' => 80,
             'correct_answers' => 3,
             'lives_remaining' => 3,
         ]);
 
         $this->assertDatabaseHas('results', [
             'user_id' => $user->id,
-            'score' => 45,
+            'score' => 80,
             'correct_answers' => 3,
             'lives_remaining' => 3,
         ]);
-        $this->assertSame(50, $user->refresh()->total_score);
+        $this->assertSame(85, $user->refresh()->total_score);
     }
 
     public function test_submit_rejects_a_missing_chosen_option_key(): void
@@ -260,7 +260,7 @@ class QuizControllerTest extends TestCase
 
         $response->assertOk();
         $response->assertJson([
-            'score' => 10,
+            'score' => 15,
             'correct_answers' => 1,
             'lives_remaining' => 0,
         ]);
