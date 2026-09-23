@@ -35,6 +35,45 @@ class QuestionControllerTest extends TestCase
         $response->assertJsonPath('data.0.correct_option', 'B');
     }
 
+    public function test_index_filters_by_category(): void
+    {
+        Question::factory()->create(['category' => 'Geography']);
+        Question::factory()->create(['category' => 'History']);
+
+        $response = $this->actingAs(User::factory()->admin()->create())
+            ->getJson('/api/admin/questions?category=Geography');
+
+        $response->assertOk();
+        $this->assertCount(1, $response->json('data'));
+        $response->assertJsonPath('data.0.category', 'Geography');
+    }
+
+    public function test_index_filters_by_country(): void
+    {
+        Question::factory()->create(['country' => 'NL']);
+        Question::factory()->create(['country' => 'HR']);
+
+        $response = $this->actingAs(User::factory()->admin()->create())
+            ->getJson('/api/admin/questions?country=HR');
+
+        $response->assertOk();
+        $this->assertCount(1, $response->json('data'));
+        $response->assertJsonPath('data.0.country', 'HR');
+    }
+
+    public function test_index_filters_by_category_and_country_together(): void
+    {
+        Question::factory()->create(['category' => 'Geography', 'country' => 'NL']);
+        Question::factory()->create(['category' => 'Geography', 'country' => 'HR']);
+        Question::factory()->create(['category' => 'History', 'country' => 'NL']);
+
+        $response = $this->actingAs(User::factory()->admin()->create())
+            ->getJson('/api/admin/questions?category=Geography&country=NL');
+
+        $response->assertOk();
+        $this->assertCount(1, $response->json('data'));
+    }
+
     public function test_store_creates_a_question(): void
     {
         $payload = [

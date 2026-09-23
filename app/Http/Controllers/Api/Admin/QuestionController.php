@@ -8,6 +8,7 @@ use App\Http\Requests\UpdateQuestionRequest;
 use App\Http\Resources\QuestionAdminResource;
 use App\Models\Question;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 /**
@@ -16,11 +17,18 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 class QuestionController extends Controller
 {
     /**
-     * Display a listing of the resource.
+     * Display a listing of the resource, optionally filtered by category
+     * and/or country so admins can organize questions by either.
      */
-    public function index(): AnonymousResourceCollection
+    public function index(Request $request): AnonymousResourceCollection
     {
-        return QuestionAdminResource::collection(Question::latest()->get());
+        $questions = Question::query()
+            ->when($request->filled('category'), fn ($query) => $query->where('category', $request->string('category')))
+            ->when($request->filled('country'), fn ($query) => $query->where('country', $request->string('country')))
+            ->latest()
+            ->get();
+
+        return QuestionAdminResource::collection($questions);
     }
 
     /**
