@@ -3,10 +3,15 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\SubmitQuizAnswersRequest;
+use App\Http\Requests\AnswerQuizQuestionRequest;
 use App\Http\Resources\QuestionResource;
 use App\Models\Question;
+use App\Models\QuizSession;
+use App\Services\GamificationService;
 use App\Services\QuizScoringService;
+use App\Services\QuizSessionService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 /**
@@ -14,7 +19,11 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
  */
 class QuizController extends Controller
 {
-    public function __construct(private QuizScoringService $scoringService) {}
+    public function __construct(
+        private QuizScoringService $scoringService,
+        private QuizSessionService $sessionService,
+        private GamificationService $gamification,
+    ) {}
 
     /**
      * Start a new quiz session by returning 10 random questions.
@@ -22,11 +31,64 @@ class QuizController extends Controller
      * The response never includes `correct_option`; the client answers
      * blind and the server re-checks every answer on submit.
      */
-    public function start(): AnonymousResourceCollection
+    public function start(Request $request): JsonResponse
     {
-        $questions = Question::inRandomOrder()->limit(10)->get();
+        $session = $this->sessionService->start($request->user(), false, $request->query('category'));
+        $questions = Question::whereIn('id', $session->question_ids)
+            ->get()
+            ->sortBy(fn (Question $question) => array_search($question->id, $session->question_ids))
+            ->values();
 
-        return QuestionResource::collection($questions);
+        return response()->json([
+            'data' => QuestionResource::collection($questions),
+            'session_id' => $session->id,
+            'timer_seconds' => GamificationService::TIMER_SECONDS,
+            'gamification' => $this->gamification->summary($request->user()),
+        ]);
+    }
+
+    public function startDaily(Request $request): JsonResponse
+    {
+        $session = $this->sessionService->start($request->user(), true);
+        $questions = Question::whereIn('id', $session->question_ids)
+            ->get()
+            ->sortBy(fn (Question $question) => array_search($question->id, $session->question_ids))
+            ->values();
+
+        return response()->json([
+            'data' => QuestionResource::collection($questions),
+            'session_id' => $session->id,
+            'timer_seconds' => GamificationService::TIMER_SECONDS,
+            'daily' => true,
+            'gamification' => $this->gamification->summary($request->user()),
+        ]);
+    }
+
+    public function answer(AnswerQuizQuestionRequest $request, QuizSession $quizSession): JsonResponse
+    {
+        $outcome = $this->sessionService->answer(
+            $quizSession,
+            $request->user(),
+            $request->validated('chosen_option'),
+        );
+
+        return response()->json([
+            'correct' => $outcome['correct'],
+            'correct_option' => $outcome['correct_option'],
+            'timed_out' => $outcome['timed_out'],
+            'lives_remaining' => $outcome['session']->lives_remaining,
+            'next_question' => $outcome['question']
+                ? (new QuestionResource($outcome['question']))->resolve()
+                : null,
+            'finished' => $outcome['result'] !== null,
+            'result' => $outcome['result'] ? [
+                'score' => $outcome['result']->score,
+                'correct_answers' => $outcome['result']->correct_answers,
+                'lives_remaining' => $outcome['result']->lives_remaining,
+                'xp_earned' => $outcome['result']->xp_earned,
+                'daily' => $outcome['result']->is_daily,
+            ] : null,
+        ]);
     }
 
     /**
