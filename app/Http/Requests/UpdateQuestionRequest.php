@@ -37,6 +37,7 @@ class UpdateQuestionRequest extends FormRequest
             'country' => ['sometimes', 'required', 'string', 'max:255'],
 
             'difficulty' => ['sometimes', 'required', 'string', 'in:easy,medium,hard'],
+            'time_limit_seconds' => ['sometimes', 'integer', 'min:5', 'max:120'],
         ];
     }
 }

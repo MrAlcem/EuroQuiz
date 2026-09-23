@@ -16,6 +16,10 @@ use Illuminate\Support\Facades\DB;
  * the client never supplies correctness itself. Lives and the
  * early-stop rule are applied while iterating that order, so trailing
  * questions submitted after the third wrong answer do not count.
+ *
+ * A `null` `chosen_option` means the client's per-question timer ran
+ * out before an option was picked; it never matches `correct_option`
+ * and so is scored exactly like any other wrong answer.
  */
 class QuizScoringService
 {
@@ -33,7 +37,7 @@ class QuizScoringService
     /**
      * Score the given answers for the user and persist a `Result`.
      *
-     * @param  array<int, array{question_id: int, chosen_option: string}>  $answers
+     * @param  array<int, array{question_id: int, chosen_option: ?string}>  $answers
      */
     public function score(User $user, array $answers): Result
     {
