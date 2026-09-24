@@ -12,9 +12,11 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 /**
- * Runs a stateful quiz session: `start`/`startDaily` pick the 10 questions
- * and open a session, `answer` scores one question at a time against a
- * server-tracked per-question timer.
+ * Runs a stateful quiz session: `start` picks 10 questions and opens a
+ * session, `startDaily` opens the day's 3-question, lives-free daily
+ * challenge (the same static set of questions for every player), and
+ * `answer` scores one question at a time against a server-tracked
+ * per-question timer.
  */
 class QuizController extends Controller
 {

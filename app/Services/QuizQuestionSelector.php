@@ -3,7 +3,6 @@
 namespace App\Services;
 
 use App\Models\Question;
-use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Carbon;
@@ -13,8 +12,8 @@ use Illuminate\Support\Collection as BaseCollection;
  * Selects the questions for a quiz session so that difficulty ramps up
  * over the course of the quiz: easy questions first, then medium, then
  * hard, each tier itself in random order (or, for the daily challenge,
- * deterministically shuffled per user so each player gets their own,
- * but stable, set of 10 questions for the day).
+ * deterministically shuffled from a date-only seed so every player gets
+ * the exact same, stable set of questions for the day).
  *
  * If a category/country filter leaves a tier short, the shortfall is
  * backfilled with any other matching, not-yet-selected question so the
@@ -24,6 +23,8 @@ use Illuminate\Support\Collection as BaseCollection;
 class QuizQuestionSelector
 {
     private const QUIZ_LENGTH = 10;
+
+    private const DAILY_QUIZ_LENGTH = 3;
 
     /**
      * @var array<string, int>
@@ -35,32 +36,44 @@ class QuizQuestionSelector
     ];
 
     /**
+     * The daily challenge is a short, one-of-each-tier version of the ramp.
+     *
+     * @var array<string, int>
+     */
+    private const DAILY_QUESTIONS_PER_DIFFICULTY = [
+        'easy' => 1,
+        'medium' => 1,
+        'hard' => 1,
+    ];
+
+    /**
      * @return Collection<int, Question>
      */
     public function select(?string $category = null, ?string $country = null): Collection
     {
-        return $this->selectQuestions($category, $country, seed: null);
+        return $this->selectQuestions(self::QUESTIONS_PER_DIFFICULTY, self::QUIZ_LENGTH, $category, $country, seed: null);
     }
 
     /**
-     * Select this user's 10 questions for the given date: different from
-     * every other player's, but stable across repeated calls the same day.
+     * Select the 3 daily-challenge questions for the given date: the same
+     * for every player, stable across repeated calls the same day.
      *
      * @return Collection<int, Question>
      */
-    public function selectForDate(Carbon $date, User $user, ?string $category = null, ?string $country = null): Collection
+    public function selectForDate(Carbon $date, ?string $category = null, ?string $country = null): Collection
     {
-        return $this->selectQuestions($category, $country, seed: $date->format('Y-m-d').'-'.$user->id);
+        return $this->selectQuestions(self::DAILY_QUESTIONS_PER_DIFFICULTY, self::DAILY_QUIZ_LENGTH, $category, $country, seed: $date->format('Y-m-d'));
     }
 
     /**
+     * @param  array<string, int>  $questionsPerDifficulty
      * @return Collection<int, Question>
      */
-    private function selectQuestions(?string $category, ?string $country, ?string $seed): Collection
+    private function selectQuestions(array $questionsPerDifficulty, int $quizLength, ?string $category, ?string $country, ?string $seed): Collection
     {
         $selected = new Collection;
 
-        foreach (self::QUESTIONS_PER_DIFFICULTY as $difficulty => $quota) {
+        foreach ($questionsPerDifficulty as $difficulty => $quota) {
             $selected = $selected->merge($this->pick(
                 $this->baseQuery($category, $country)->where('difficulty', $difficulty),
                 $selected->pluck('id'),
@@ -69,7 +82,7 @@ class QuizQuestionSelector
             ));
         }
 
-        $shortfall = self::QUIZ_LENGTH - $selected->count();
+        $shortfall = $quizLength - $selected->count();
 
         if ($shortfall > 0) {
             $selected = $selected->merge($this->pick(

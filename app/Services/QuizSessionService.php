@@ -12,11 +12,12 @@ use Illuminate\Validation\ValidationException;
 
 /**
  * Runs a stateful quiz session one question at a time: `start()` picks the
- * 10 questions (ramped from easy to hard via `QuizQuestionSelector`, and
- * seeded per user for the daily mode so each player gets their own set),
- * `answer()` scores each submitted answer against the server-tracked
- * `question_started_at` timer and persists a `Result` once the session
- * ends.
+ * questions (ramped from easy to hard via `QuizQuestionSelector` — 10 for a
+ * standard quiz, 3 for the daily challenge, which is the same static set
+ * for every player on a given date), `answer()` scores each submitted
+ * answer against the server-tracked `question_started_at` timer and
+ * persists a `Result` once the session ends. The daily challenge has no
+ * lives: a wrong answer never ends it early.
  */
 class QuizSessionService
 {
@@ -61,7 +62,7 @@ class QuizSessionService
         }
 
         $questionIds = $daily
-            ? $this->questionSelector->selectForDate($date, $user)->pluck('id')->values()->all()
+            ? $this->questionSelector->selectForDate($date)->pluck('id')->values()->all()
             : $this->questionSelector->select($category, $country)->pluck('id')->values()->all();
 
         return QuizSession::create([
@@ -110,6 +111,8 @@ class QuizSessionService
             throw ValidationException::withMessages(['session_id' => 'This quiz session is already finished.']);
         }
 
+        $isDaily = $session->mode === 'daily';
+
         $questionId = $session->question_ids[$session->current_question_index] ?? null;
         $question = Question::findOrFail($questionId);
         $timedOut = $session->question_started_at?->addSeconds($question->time_limit_seconds)->isPast() ?? false;
@@ -124,12 +127,15 @@ class QuizSessionService
                 $session->score += self::STREAK_BONUS;
             }
         } else {
-            $session->lives_remaining--;
+            // The daily challenge has no lives: a wrong answer just moves on.
+            if (! $isDaily) {
+                $session->lives_remaining--;
+            }
             $session->current_streak = 0;
         }
 
         $session->current_question_index++;
-        $finished = $session->lives_remaining <= 0
+        $finished = (! $isDaily && $session->lives_remaining <= 0)
             || $session->current_question_index >= count($session->question_ids);
         $session->status = $finished ? 'completed' : 'active';
         $session->question_started_at = $finished ? null : now();

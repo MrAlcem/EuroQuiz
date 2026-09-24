@@ -2,7 +2,6 @@
 
 namespace Database\Seeders;
 
-use App\Models\Question;
 use App\Models\User;
 use App\UserRole;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
@@ -31,8 +30,6 @@ class DatabaseSeeder extends Seeder
             'password' => bcrypt('password'),
         ]);
 
-        if (Question::count() === 0) {
-            Question::factory(40)->create();
-        }
+        $this->call(QuestionSeeder::class);
     }
 }
