@@ -43,6 +43,20 @@ class GamificationService
         return array_values(array_unique([...$levelCategories, ...$customCategories]));
     }
 
+    /**
+     * The level a user needs to reach to unlock this category, or null if
+     * it's already unlocked at every level (the two base categories and
+     * any custom category).
+     */
+    public function requiredLevelForCategory(string $category): ?UserLevel
+    {
+        return match ($category) {
+            'History' => UserLevel::Pro,
+            'Culture' => UserLevel::Expert,
+            default => null,
+        };
+    }
+
     public function xpForScore(int $score): int
     {
         return $score;

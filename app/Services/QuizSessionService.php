@@ -30,8 +30,14 @@ class QuizSessionService
     public function start(User $user, bool $daily = false, ?string $category = null, ?string $country = null): QuizSession
     {
         if ($category !== null && ! in_array($category, $this->gamification->unlockedCategories($user), true)) {
+            $requiredLevel = $this->gamification->requiredLevelForCategory($category);
+            $message = 'This category is not unlocked for your current level.';
+            if ($requiredLevel !== null) {
+                $message .= " It unlocks once you reach the {$requiredLevel->name} level (total score of {$requiredLevel->minimumScore()}).";
+            }
+
             throw ValidationException::withMessages([
-                'category' => 'This category is not unlocked for your current level.',
+                'category' => $message,
             ]);
         }
 
@@ -108,10 +114,10 @@ class QuizSessionService
         if ($correct) {
             $session->correct_answers++;
             $session->current_streak++;
-            $pointsAwarded = self::POINTS_BY_DIFFICULTY[$question->difficulty];
+            $pointsAwarded = $this->settings->get("{$question->difficulty}_points");
 
-            if ($session->current_streak % self::STREAK_LENGTH === 0) {
-                $pointsAwarded += self::STREAK_BONUS;
+            if ($session->current_streak % $this->settings->get('streak_length') === 0) {
+                $pointsAwarded += $this->settings->get('streak_bonus');
             }
 
             $session->score += $pointsAwarded;

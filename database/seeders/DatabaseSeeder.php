@@ -30,6 +30,8 @@ class DatabaseSeeder extends Seeder
             'password' => bcrypt('password'),
         ]);
 
+        $this->leaderboardUsers();
+
         $this->call(QuestionSeeder::class);
 
         Question::query()
@@ -40,5 +42,31 @@ class DatabaseSeeder extends Seeder
             ->each(static function (string $categoryName): void {
                 Category::firstOrCreate(['name' => $categoryName]);
             });
+    }
+
+    /**
+     * Seed a handful of users with varying total scores so the leaderboard
+     * has data to display across all user levels.
+     */
+    private function leaderboardUsers(): void
+    {
+        $users = [
+            ['name' => 'Lars Jansen', 'email' => 'lars@example.com', 'total_score' => 450],
+            ['name' => 'Emma de Vries', 'email' => 'emma@example.com', 'total_score' => 320],
+            ['name' => 'Sven Andersson', 'email' => 'sven@example.com', 'total_score' => 210],
+            ['name' => 'Ivana Horvat', 'email' => 'ivana@example.com', 'total_score' => 150],
+            ['name' => 'Noah Bakker', 'email' => 'noah@example.com', 'total_score' => 90],
+            ['name' => 'Klara Nilsson', 'email' => 'klara@example.com', 'total_score' => 40],
+            ['name' => 'Marko Kovač', 'email' => 'marko@example.com', 'total_score' => 15],
+        ];
+
+        foreach ($users as $user) {
+            User::updateOrCreate(['email' => $user['email']], [
+                'name' => $user['name'],
+                'role' => UserRole::User,
+                'password' => bcrypt('password'),
+                'total_score' => $user['total_score'],
+            ]);
+        }
     }
 }
