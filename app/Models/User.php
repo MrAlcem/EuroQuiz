@@ -54,6 +54,7 @@ class User extends Authenticatable
             'password' => 'hashed',
             'role' => UserRole::class,
             'xp' => 'integer',
+            'two_factor_enabled' => 'boolean',
         ];
     }
 }

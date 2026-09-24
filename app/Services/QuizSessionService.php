@@ -21,24 +21,10 @@ use Illuminate\Validation\ValidationException;
  */
 class QuizSessionService
 {
-    private const STREAK_LENGTH = 3;
-
-    private const STREAK_BONUS = 5;
-
-    private const DAILY_BONUS = 20;
-
-    /**
-     * @var array<string, int>
-     */
-    private const POINTS_BY_DIFFICULTY = [
-        'easy' => 15,
-        'medium' => 25,
-        'hard' => 40,
-    ];
-
     public function __construct(
         private GamificationService $gamification,
         private QuizQuestionSelector $questionSelector,
+        private QuizSettingsService $settings,
     ) {}
 
     public function start(User $user, bool $daily = false, ?string $category = null, ?string $country = null): QuizSession
@@ -62,14 +48,14 @@ class QuizSessionService
         }
 
         $questionIds = $daily
-            ? $this->questionSelector->selectForDate($date)->pluck('id')->values()->all()
+            ? $this->questionSelector->selectForDate($date, $user)->pluck('id')->values()->all()
             : $this->questionSelector->select($category, $country)->pluck('id')->values()->all();
 
         return QuizSession::create([
             'user_id' => $user->id,
             'question_ids' => $questionIds,
             'current_question_index' => 0,
-            'lives_remaining' => 3,
+            'lives_remaining' => $this->settings->lives(),
             'score' => 0,
             'correct_answers' => 0,
             'current_streak' => 0,
@@ -167,7 +153,7 @@ class QuizSessionService
                 ];
             }
 
-            $score = $session->score + ($session->mode === 'daily' ? self::DAILY_BONUS : 0);
+            $score = $session->score + ($session->mode === 'daily' ? $this->settings->get('daily_bonus') : 0);
             $xp = $this->gamification->xpForScore($score);
             $result = Result::create([
                 'user_id' => $user->id,

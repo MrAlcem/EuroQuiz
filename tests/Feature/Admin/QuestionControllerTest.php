@@ -74,6 +74,39 @@ class QuestionControllerTest extends TestCase
         $this->assertCount(1, $response->json('data'));
     }
 
+    public function test_index_searches_and_filters_by_difficulty(): void
+    {
+        Question::factory()->create([
+            'question_text' => 'Which river crosses Europe?',
+            'difficulty' => 'hard',
+        ]);
+        Question::factory()->create([
+            'question_text' => 'What is a capital city?',
+            'difficulty' => 'easy',
+        ]);
+
+        $response = $this->actingAs(User::factory()->admin()->create())
+            ->getJson('/api/admin/questions?search=river&difficulty=hard');
+
+        $response->assertOk();
+        $this->assertCount(1, $response->json('data'));
+        $response->assertJsonPath('data.0.question_text', 'Which river crosses Europe?');
+    }
+
+    public function test_index_is_paginated(): void
+    {
+        Question::factory()->count(3)->create();
+
+        $response = $this->actingAs(User::factory()->admin()->create())
+            ->getJson('/api/admin/questions?per_page=2&page=2');
+
+        $response->assertOk()
+            ->assertJsonPath('meta.current_page', 2)
+            ->assertJsonPath('meta.per_page', 2)
+            ->assertJsonPath('meta.total', 3);
+        $this->assertCount(1, $response->json('data'));
+    }
+
     public function test_store_creates_a_question(): void
     {
         $payload = [

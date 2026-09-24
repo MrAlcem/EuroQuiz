@@ -2,6 +2,8 @@
 
 namespace Database\Seeders;
 
+use App\Models\Category;
+use App\Models\Question;
 use App\Models\User;
 use App\UserRole;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
@@ -16,8 +18,6 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // User::factory(10)->create();
-
         User::updateOrCreate(['email' => 'test@example.com'], [
             'name' => 'Test User',
             'role' => UserRole::User,
@@ -31,5 +31,14 @@ class DatabaseSeeder extends Seeder
         ]);
 
         $this->call(QuestionSeeder::class);
+
+        Question::query()
+            ->whereNotNull('category')
+            ->where('category', '<>', '')
+            ->distinct()
+            ->pluck('category')
+            ->each(static function (string $categoryName): void {
+                Category::firstOrCreate(['name' => $categoryName]);
+            });
     }
 }

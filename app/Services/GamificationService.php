@@ -2,12 +2,18 @@
 
 namespace App\Services;
 
+use App\Models\Category;
 use App\Models\User;
 use App\UserLevel;
 
 class GamificationService
 {
-    public const TIMER_SECONDS = 30;
+    public function __construct(private QuizSettingsService $settings) {}
+
+    public function timerSeconds(): int
+    {
+        return $this->settings->timerSeconds();
+    }
 
     /**
      * Delegates to `UserLevel`, the single source of truth for a user's
@@ -22,11 +28,19 @@ class GamificationService
     /** @return array<int, string> */
     public function unlockedCategories(User $user): array
     {
-        return match ($this->level($user)) {
+        $levelCategories = match ($this->level($user)) {
             'Expert' => ['Geography', 'Nature', 'History', 'Culture'],
             'Pro' => ['Geography', 'Nature', 'History'],
             default => ['Geography', 'Nature'],
         };
+
+        $customCategories = Category::query()
+            ->whereNotIn('name', ['Geography', 'Nature', 'History', 'Culture'])
+            ->orderBy('name')
+            ->pluck('name')
+            ->all();
+
+        return array_values(array_unique([...$levelCategories, ...$customCategories]));
     }
 
     public function xpForScore(int $score): int

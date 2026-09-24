@@ -26,6 +26,34 @@ class QuizController extends Controller
     ) {}
 
     /**
+     * Return the filter choices available in questions for this player.
+     */
+    public function options(Request $request): JsonResponse
+    {
+        $unlockedCategories = $this->gamification->unlockedCategories($request->user());
+
+        return response()->json([
+            'data' => [
+                'categories' => Question::query()
+                    ->whereIn('category', $unlockedCategories)
+                    ->whereNotNull('category')
+                    ->where('category', '<>', '')
+                    ->distinct()
+                    ->orderBy('category')
+                    ->pluck('category')
+                    ->values(),
+                'countries' => Question::query()
+                    ->whereNotNull('country')
+                    ->where('country', '<>', '')
+                    ->distinct()
+                    ->orderBy('country')
+                    ->pluck('country')
+                    ->values(),
+            ],
+        ]);
+    }
+
+    /**
      * Start a new quiz session, optionally scoped to a `?category=`
      * (must be unlocked for the player's level) and/or `?country=`.
      */
@@ -49,6 +77,21 @@ class QuizController extends Controller
         $session = $this->sessionService->start($request->user(), daily: true);
 
         return $this->sessionResponse($session, $request, daily: true);
+    }
+
+    /**
+     * The full question set for an already-started session, re-translated
+     * into `?lang=`. Read-only — unlike `start`/`startDaily`, it never
+     * touches `question_started_at`, so switching language mid-quiz doesn't
+     * cost the player any time on the per-question timer.
+     */
+    public function questions(Request $request, QuizSession $quizSession): JsonResponse
+    {
+        abort_if($quizSession->user_id !== $request->user()->id, 403);
+
+        return response()->json([
+            'data' => $this->translatedQuestions($quizSession),
+        ]);
     }
 
     /**
@@ -85,13 +128,8 @@ class QuizController extends Controller
 
     private function sessionResponse(QuizSession $session, Request $request, bool $daily = false): JsonResponse
     {
-        $questions = Question::whereIn('id', $session->question_ids)
-            ->get()
-            ->sortBy(fn (Question $question) => array_search($question->id, $session->question_ids))
-            ->values();
-
         $payload = [
-            'data' => QuestionResource::collection($questions),
+            'data' => $this->translatedQuestions($session),
             'session_id' => $session->id,
             // The limit for the question the player is about to see; each
             // question in `data` also carries its own `time_limit_seconds`,
@@ -117,5 +155,16 @@ class QuizController extends Controller
         }
 
         return response()->json($payload);
+    }
+
+    /** @return \Illuminate\Http\Resources\Json\AnonymousResourceCollection */
+    private function translatedQuestions(QuizSession $session)
+    {
+        $questions = Question::whereIn('id', $session->question_ids)
+            ->get()
+            ->sortBy(fn (Question $question) => array_search($question->id, $session->question_ids))
+            ->values();
+
+        return QuestionResource::collection($questions);
     }
 }
