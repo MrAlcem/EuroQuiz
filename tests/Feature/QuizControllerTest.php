@@ -128,6 +128,59 @@ class QuizControllerTest extends TestCase
         ]);
     }
 
+    public function test_questions_requires_authentication(): void
+    {
+        $response = $this->getJson('/api/quiz/sessions/1/questions');
+
+        $response->assertUnauthorized();
+    }
+
+    public function test_questions_returns_the_sessions_questions_translated_to_the_requested_language(): void
+    {
+        $question = Question::factory()->create(['question_text' => ['en' => 'What is the capital?']]);
+        $question->setTranslation('question_text', 'nl', 'Wat is de hoofdstad?')->save();
+        $user = User::factory()->create();
+
+        $sessionId = $this->actingAs($user)->getJson('/api/quiz/start')->json('session_id');
+
+        $response = $this->actingAs($user)->getJson("/api/quiz/sessions/{$sessionId}/questions?lang=nl");
+
+        $response->assertOk();
+        $response->assertJsonPath('data.0.text', 'Wat is de hoofdstad?');
+    }
+
+    public function test_questions_rejects_another_users_session(): void
+    {
+        Question::factory()->create();
+        $owner = User::factory()->create();
+        $intruder = User::factory()->create();
+
+        $sessionId = $this->actingAs($owner)->getJson('/api/quiz/start')->json('session_id');
+
+        $response = $this->actingAs($intruder)->getJson("/api/quiz/sessions/{$sessionId}/questions");
+
+        $response->assertForbidden();
+    }
+
+    public function test_questions_does_not_reset_the_question_timer(): void
+    {
+        Question::factory()->correctOption('A')->count(2)->create();
+        $user = User::factory()->create();
+
+        $sessionId = $this->actingAs($user)->getJson('/api/quiz/start')->json('session_id');
+        $this->travel(1)->hours();
+        $this->actingAs($user)->getJson("/api/quiz/sessions/{$sessionId}/questions?lang=nl");
+
+        // The per-question timer for question 1 expired an hour ago; a
+        // re-translation request must not have reset it back to "fresh".
+        $response = $this->actingAs($user)->postJson(
+            "/api/quiz/sessions/{$sessionId}/answer",
+            ['chosen_option' => 'A'],
+        );
+
+        $response->assertJson(['timed_out' => true, 'correct' => false]);
+    }
+
     public function test_daily_gives_the_same_three_questions_to_every_user(): void
     {
         Question::factory()->difficulty('easy')->count(8)->create();
