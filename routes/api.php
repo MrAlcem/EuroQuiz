@@ -1,6 +1,10 @@
 <?php
 
+use App\Http\Controllers\Api\Admin\CategoryController;
+use App\Http\Controllers\Api\Admin\DashboardStatsController;
 use App\Http\Controllers\Api\Admin\QuestionController;
+use App\Http\Controllers\Api\Admin\ResultController;
+use App\Http\Controllers\Api\Admin\SettingController;
 use App\Http\Controllers\Api\Admin\UserController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\LeaderboardController;
@@ -31,12 +35,21 @@ Route::middleware('auth:sanctum')->group(function () {
 });
 
 Route::middleware('auth:sanctum')->prefix('quiz')->group(function () {
+    Route::get('/options', [QuizController::class, 'options']);
     Route::get('/start', [QuizController::class, 'start']);
     Route::get('/daily', [QuizController::class, 'startDaily']);
     Route::post('/sessions/{quizSession}/answer', [QuizController::class, 'answer']);
 });
 
 Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function () {
+    Route::get('/questions/options', [QuestionController::class, 'options']);
+    Route::post('/questions/import', [QuestionController::class, 'import']);
+    Route::get('/questions/export', [QuestionController::class, 'export']);
     Route::apiResource('questions', QuestionController::class);
-    Route::get('/users', [UserController::class, 'index']);
+    Route::get('/dashboard/stats', DashboardStatsController::class);
+    Route::apiResource('categories', CategoryController::class)->only(['index', 'store', 'update', 'destroy']);
+    Route::get('/settings', [SettingController::class, 'show']);
+    Route::put('/settings', [SettingController::class, 'update']);
+    Route::apiResource('users', UserController::class)->only(['index', 'show', 'update', 'destroy']);
+    Route::apiResource('results', ResultController::class)->only(['index', 'show']);
 });

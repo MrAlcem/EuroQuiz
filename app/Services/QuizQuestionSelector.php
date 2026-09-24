@@ -23,16 +23,7 @@ use Illuminate\Support\Collection as BaseCollection;
  */
 class QuizQuestionSelector
 {
-    private const QUIZ_LENGTH = 10;
-
-    /**
-     * @var array<string, int>
-     */
-    private const QUESTIONS_PER_DIFFICULTY = [
-        'easy' => 4,
-        'medium' => 3,
-        'hard' => 3,
-    ];
+    public function __construct(private QuizSettingsService $settings) {}
 
     /**
      * @return Collection<int, Question>
@@ -60,7 +51,7 @@ class QuizQuestionSelector
     {
         $selected = new Collection;
 
-        foreach (self::QUESTIONS_PER_DIFFICULTY as $difficulty => $quota) {
+        foreach ($this->settings->questionsPerDifficulty() as $difficulty => $quota) {
             $selected = $selected->merge($this->pick(
                 $this->baseQuery($category, $country)->where('difficulty', $difficulty),
                 $selected->pluck('id'),
@@ -69,7 +60,7 @@ class QuizQuestionSelector
             ));
         }
 
-        $shortfall = self::QUIZ_LENGTH - $selected->count();
+        $shortfall = $this->settings->quizLength() - $selected->count();
 
         if ($shortfall > 0) {
             $selected = $selected->merge($this->pick(

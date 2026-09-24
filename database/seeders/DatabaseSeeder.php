@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\Category;
 use App\Models\Question;
 use App\Models\User;
 use App\UserRole;
@@ -34,5 +35,14 @@ class DatabaseSeeder extends Seeder
         if (Question::count() === 0) {
             Question::factory(40)->create();
         }
+
+        Question::query()
+            ->whereNotNull('category')
+            ->where('category', '<>', '')
+            ->distinct()
+            ->pluck('category')
+            ->each(static function (string $categoryName): void {
+                Category::firstOrCreate(['name' => $categoryName]);
+            });
     }
 }

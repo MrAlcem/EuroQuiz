@@ -33,4 +33,12 @@ class Result extends Model
     {
         return $this->belongsTo(User::class);
     }
+
+    /**
+     * @return BelongsTo<QuizSession, $this>
+     */
+    public function quizSession(): BelongsTo
+    {
+        return $this->belongsTo(QuizSession::class);
+    }
 }

@@ -20,24 +20,10 @@ use Illuminate\Validation\ValidationException;
  */
 class QuizSessionService
 {
-    private const STREAK_LENGTH = 3;
-
-    private const STREAK_BONUS = 5;
-
-    private const DAILY_BONUS = 20;
-
-    /**
-     * @var array<string, int>
-     */
-    private const POINTS_BY_DIFFICULTY = [
-        'easy' => 15,
-        'medium' => 25,
-        'hard' => 40,
-    ];
-
     public function __construct(
         private GamificationService $gamification,
         private QuizQuestionSelector $questionSelector,
+        private QuizSettingsService $settings,
     ) {}
 
     public function start(User $user, bool $daily = false, ?string $category = null, ?string $country = null): QuizSession
@@ -68,7 +54,7 @@ class QuizSessionService
             'user_id' => $user->id,
             'question_ids' => $questionIds,
             'current_question_index' => 0,
-            'lives_remaining' => 3,
+            'lives_remaining' => $this->settings->lives(),
             'score' => 0,
             'correct_answers' => 0,
             'current_streak' => 0,
@@ -118,10 +104,10 @@ class QuizSessionService
         if ($correct) {
             $session->correct_answers++;
             $session->current_streak++;
-            $session->score += self::POINTS_BY_DIFFICULTY[$question->difficulty];
+            $session->score += $this->settings->pointsByDifficulty()[$question->difficulty];
 
-            if ($session->current_streak % self::STREAK_LENGTH === 0) {
-                $session->score += self::STREAK_BONUS;
+            if ($session->current_streak % $this->settings->get('streak_length') === 0) {
+                $session->score += $this->settings->get('streak_bonus');
             }
         } else {
             $session->lives_remaining--;
@@ -148,7 +134,7 @@ class QuizSessionService
                 ];
             }
 
-            $score = $session->score + ($session->mode === 'daily' ? self::DAILY_BONUS : 0);
+            $score = $session->score + ($session->mode === 'daily' ? $this->settings->get('daily_bonus') : 0);
             $xp = $this->gamification->xpForScore($score);
             $result = Result::create([
                 'user_id' => $user->id,

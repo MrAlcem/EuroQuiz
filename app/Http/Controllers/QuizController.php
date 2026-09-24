@@ -24,6 +24,34 @@ class QuizController extends Controller
     ) {}
 
     /**
+     * Return the filter choices available in questions for this player.
+     */
+    public function options(Request $request): JsonResponse
+    {
+        $unlockedCategories = $this->gamification->unlockedCategories($request->user());
+
+        return response()->json([
+            'data' => [
+                'categories' => Question::query()
+                    ->whereIn('category', $unlockedCategories)
+                    ->whereNotNull('category')
+                    ->where('category', '<>', '')
+                    ->distinct()
+                    ->orderBy('category')
+                    ->pluck('category')
+                    ->values(),
+                'countries' => Question::query()
+                    ->whereNotNull('country')
+                    ->where('country', '<>', '')
+                    ->distinct()
+                    ->orderBy('country')
+                    ->pluck('country')
+                    ->values(),
+            ],
+        ]);
+    }
+
+    /**
      * Start a new quiz session, optionally scoped to a `?category=`
      * (must be unlocked for the player's level) and/or `?country=`.
      */
@@ -90,7 +118,7 @@ class QuizController extends Controller
         $payload = [
             'data' => QuestionResource::collection($questions),
             'session_id' => $session->id,
-            'timer_seconds' => GamificationService::TIMER_SECONDS,
+            'timer_seconds' => $this->gamification->timerSeconds(),
             'gamification' => $this->gamification->summary($request->user()),
         ];
 
