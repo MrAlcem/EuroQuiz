@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\LeaderboardController;
 use App\Http\Controllers\Api\MfaController;
 use App\Http\Controllers\Api\ProfileController;
+use App\Http\Controllers\Api\ResultController;
 use App\Http\Controllers\QuizController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -28,6 +29,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/user/profile', [ProfileController::class, 'show']);
     Route::get('/leaderboard', [LeaderboardController::class, 'index']);
+    Route::get('/results/{result}', [ResultController::class, 'show']);
 });
 
 Route::middleware(['auth:sanctum', 'locale'])->prefix('quiz')->group(function () {
