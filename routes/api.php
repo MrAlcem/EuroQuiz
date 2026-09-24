@@ -3,7 +3,7 @@
 use App\Http\Controllers\Api\Admin\CategoryController;
 use App\Http\Controllers\Api\Admin\DashboardStatsController;
 use App\Http\Controllers\Api\Admin\QuestionController;
-use App\Http\Controllers\Api\Admin\ResultController;
+use App\Http\Controllers\Api\Admin\ResultController as AdminResultController;
 use App\Http\Controllers\Api\Admin\SettingController;
 use App\Http\Controllers\Api\Admin\UserController;
 use App\Http\Controllers\Api\AuthController;
@@ -54,5 +54,5 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function ()
     Route::get('/settings', [SettingController::class, 'show']);
     Route::put('/settings', [SettingController::class, 'update']);
     Route::apiResource('users', UserController::class)->only(['index', 'show', 'update', 'destroy']);
-    Route::apiResource('results', ResultController::class)->only(['index', 'show']);
+    Route::apiResource('results', AdminResultController::class)->only(['index', 'show']);
 });

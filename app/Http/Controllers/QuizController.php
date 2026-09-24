@@ -10,6 +10,8 @@ use App\Services\GamificationService;
 use App\Services\QuizSessionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Collection;
 
 /**
  * Runs a stateful quiz session: `start` picks 10 questions and opens a
@@ -128,14 +130,16 @@ class QuizController extends Controller
 
     private function sessionResponse(QuizSession $session, Request $request, bool $daily = false): JsonResponse
     {
+        $questions = $this->translatedQuestions($session);
+
         $payload = [
-            'data' => $this->translatedQuestions($session),
+            'data' => $questions,
             'session_id' => $session->id,
             // The limit for the question the player is about to see; each
             // question in `data` also carries its own `time_limit_seconds`,
             // since the server enforces it per question, not with one
             // fixed timer for the whole session.
-            'timer_seconds' => $questions->first()?->time_limit_seconds ?? GamificationService::TIMER_SECONDS,
+            'timer_seconds' => $questions->first()?->time_limit_seconds ?? $this->gamification->timerSeconds(),
             'gamification' => $this->gamification->summary($request->user()),
         ];
 
@@ -157,14 +161,20 @@ class QuizController extends Controller
         return response()->json($payload);
     }
 
-    /** @return \Illuminate\Http\Resources\Json\AnonymousResourceCollection */
+    /** @return AnonymousResourceCollection */
     private function translatedQuestions(QuizSession $session)
     {
-        $questions = Question::whereIn('id', $session->question_ids)
+        $questions = $this->orderedQuestions($session);
+
+        return QuestionResource::collection($questions);
+    }
+
+    /** @return Collection<int, Question> */
+    private function orderedQuestions(QuizSession $session): Collection
+    {
+        return Question::whereIn('id', $session->question_ids)
             ->get()
             ->sortBy(fn (Question $question) => array_search($question->id, $session->question_ids))
             ->values();
-
-        return QuestionResource::collection($questions);
     }
 }

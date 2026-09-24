@@ -27,4 +27,12 @@ enum UserLevel: string
             default => self::Beginner,
         };
     }
+
+    /**
+     * The total score needed to reach this level.
+     */
+    public function minimumScore(): int
+    {
+        return self::MINIMUM_SCORE[$this->value] ?? 0;
+    }
 }
