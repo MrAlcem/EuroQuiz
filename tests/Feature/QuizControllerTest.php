@@ -37,6 +37,20 @@ class QuizControllerTest extends TestCase
         $response->assertJsonCount(3, 'data');
     }
 
+    public function test_start_returns_questions_translated_to_the_requested_language(): void
+    {
+        $question = Question::factory()->create(['question_text' => ['en' => 'What is the capital?']]);
+        $question->setTranslation('question_text', 'nl', 'Wat is de hoofdstad?')->save();
+
+        $translated = $this->actingAs(User::factory()->create())->getJson('/api/quiz/start?lang=nl');
+        $translated->assertOk();
+        $translated->assertJsonPath('data.0.text', 'Wat is de hoofdstad?');
+
+        $fallback = $this->actingAs(User::factory()->create())->getJson('/api/quiz/start?lang=se');
+        $fallback->assertOk();
+        $fallback->assertJsonPath('data.0.text', 'What is the capital?');
+    }
+
     public function test_start_rejects_a_category_not_unlocked_for_the_users_level(): void
     {
         Question::factory()->count(5)->create(['category' => 'History']);
@@ -114,7 +128,7 @@ class QuizControllerTest extends TestCase
         ]);
     }
 
-    public function test_daily_gives_different_questions_to_different_users(): void
+    public function test_daily_gives_the_same_three_questions_to_every_user(): void
     {
         Question::factory()->difficulty('easy')->count(8)->create();
         Question::factory()->difficulty('medium')->count(6)->create();
@@ -123,10 +137,31 @@ class QuizControllerTest extends TestCase
         $first = $this->actingAs(User::factory()->create())->getJson('/api/quiz/daily');
         $second = $this->actingAs(User::factory()->create())->getJson('/api/quiz/daily');
 
+        $first->assertJsonCount(3, 'data');
+        $second->assertJsonCount(3, 'data');
+
         $firstIds = collect($first->json('data'))->pluck('id')->sort()->values();
         $secondIds = collect($second->json('data'))->pluck('id')->sort()->values();
 
-        $this->assertNotSame($firstIds->all(), $secondIds->all());
+        $this->assertSame($firstIds->all(), $secondIds->all());
+    }
+
+    public function test_daily_challenge_has_no_lives(): void
+    {
+        Question::factory()->difficulty('easy')->correctOption('A')->create();
+        Question::factory()->difficulty('medium')->correctOption('A')->create();
+        Question::factory()->difficulty('hard')->correctOption('A')->create();
+        $user = User::factory()->create();
+
+        $sessionId = $this->actingAs($user)->getJson('/api/quiz/daily')->json('session_id');
+
+        $last = $this->answerAll($user, $sessionId, count: 3, chosenOption: 'B');
+
+        $last->assertJson([
+            'correct' => false,
+            'finished' => true,
+            'result' => ['correct_answers' => 0, 'lives_remaining' => 3],
+        ]);
     }
 
     public function test_daily_reports_already_completed_with_result_and_reset_time(): void

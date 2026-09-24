@@ -18,11 +18,11 @@ class QuestionFactory extends Factory
     public function definition(): array
     {
         return [
-            'question_text' => fake()->sentence().'?',
-            'option_a' => fake()->word(),
-            'option_b' => fake()->word(),
-            'option_c' => fake()->word(),
-            'option_d' => fake()->word(),
+            'question_text' => ['en' => fake()->sentence().'?'],
+            'option_a' => ['en' => fake()->word()],
+            'option_b' => ['en' => fake()->word()],
+            'option_c' => ['en' => fake()->word()],
+            'option_d' => ['en' => fake()->word()],
             'correct_option' => fake()->randomElement(['A', 'B', 'C', 'D']),
             'category' => fake()->word(),
             'country' => fake()->randomElement(['NL', 'HR']),
