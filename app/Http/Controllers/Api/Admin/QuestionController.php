@@ -131,7 +131,12 @@ class QuestionController extends Controller
                 continue;
             }
 
-            $rows[] = $validator->validated();
+            $validated = $validator->validated();
+            foreach (['question_text', 'option_a', 'option_b', 'option_c', 'option_d'] as $translationField) {
+                $validated[$translationField] = ['en' => $validated[$translationField]];
+            }
+
+            $rows[] = $validated;
         }
 
         fclose($stream);
@@ -175,7 +180,13 @@ class QuestionController extends Controller
             fputcsv($output, $columns, ',', '"', '');
 
             foreach (Question::query()->orderBy('id')->cursor() as $question) {
-                fputcsv($output, array_map(static fn (string $column) => $question->{$column}, $columns), ',', '"', '');
+                fputcsv($output, array_map(static function (string $column) use ($question): mixed {
+                    if (in_array($column, ['question_text', 'option_a', 'option_b', 'option_c', 'option_d'], true)) {
+                        return $question->getTranslation($column, 'en', false) ?? '';
+                    }
+
+                    return $question->{$column};
+                }, $columns), ',', '"', '');
             }
 
             fclose($output);

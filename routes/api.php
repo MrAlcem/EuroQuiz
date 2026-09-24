@@ -34,7 +34,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/leaderboard', [LeaderboardController::class, 'index']);
 });
 
-Route::middleware('auth:sanctum')->prefix('quiz')->group(function () {
+Route::middleware(['auth:sanctum', 'locale'])->prefix('quiz')->group(function () {
     Route::get('/options', [QuizController::class, 'options']);
     Route::get('/start', [QuizController::class, 'start']);
     Route::get('/daily', [QuizController::class, 'startDaily']);

@@ -110,11 +110,11 @@ class QuestionControllerTest extends TestCase
     public function test_store_creates_a_question(): void
     {
         $payload = [
-            'question_text' => 'What is the capital of the Netherlands?',
-            'option_a' => 'Rotterdam',
-            'option_b' => 'Amsterdam',
-            'option_c' => 'Utrecht',
-            'option_d' => 'The Hague',
+            'question_text' => ['en' => 'What is the capital of the Netherlands?'],
+            'option_a' => ['en' => 'Rotterdam'],
+            'option_b' => ['en' => 'Amsterdam'],
+            'option_c' => ['en' => 'Utrecht'],
+            'option_d' => ['en' => 'The Hague'],
             'correct_option' => 'B',
             'category' => 'Geography',
             'country' => 'NL',
@@ -128,17 +128,20 @@ class QuestionControllerTest extends TestCase
         $response->assertCreated();
         $response->assertJsonPath('data.correct_option', 'B');
         $response->assertJsonPath('data.time_limit_seconds', 20);
-        $this->assertDatabaseHas('questions', ['question_text' => $payload['question_text']]);
+        $this->assertSame(
+            $payload['question_text']['en'],
+            Question::find($response->json('data.id'))->question_text,
+        );
     }
 
     public function test_store_defaults_the_time_limit_when_omitted(): void
     {
         $payload = [
-            'question_text' => 'Question?',
-            'option_a' => 'A',
-            'option_b' => 'B',
-            'option_c' => 'C',
-            'option_d' => 'D',
+            'question_text' => ['en' => 'Question?'],
+            'option_a' => ['en' => 'A'],
+            'option_b' => ['en' => 'B'],
+            'option_c' => ['en' => 'C'],
+            'option_d' => ['en' => 'D'],
             'correct_option' => 'A',
             'category' => 'General',
             'country' => 'NL',
@@ -155,11 +158,11 @@ class QuestionControllerTest extends TestCase
     public function test_store_rejects_a_time_limit_outside_the_allowed_range(): void
     {
         $payload = [
-            'question_text' => 'Question?',
-            'option_a' => 'A',
-            'option_b' => 'B',
-            'option_c' => 'C',
-            'option_d' => 'D',
+            'question_text' => ['en' => 'Question?'],
+            'option_a' => ['en' => 'A'],
+            'option_b' => ['en' => 'B'],
+            'option_c' => ['en' => 'C'],
+            'option_d' => ['en' => 'D'],
             'correct_option' => 'A',
             'category' => 'General',
             'country' => 'NL',
@@ -184,11 +187,11 @@ class QuestionControllerTest extends TestCase
     public function test_store_rejects_an_invalid_correct_option(): void
     {
         $response = $this->actingAs(User::factory()->admin()->create())->postJson('/api/admin/questions', [
-            'question_text' => 'Question?',
-            'option_a' => 'A',
-            'option_b' => 'B',
-            'option_c' => 'C',
-            'option_d' => 'D',
+            'question_text' => ['en' => 'Question?'],
+            'option_a' => ['en' => 'A'],
+            'option_b' => ['en' => 'B'],
+            'option_c' => ['en' => 'C'],
+            'option_d' => ['en' => 'D'],
             'correct_option' => 'E',
             'category' => 'General',
             'country' => 'NL',
@@ -204,11 +207,11 @@ class QuestionControllerTest extends TestCase
         $question = Question::factory()->create();
 
         $response = $this->actingAs(User::factory()->admin()->create())
-            ->putJson("/api/admin/questions/{$question->id}", ['question_text' => 'Updated text?']);
+            ->putJson("/api/admin/questions/{$question->id}", ['question_text' => ['en' => 'Updated text?']]);
 
         $response->assertOk();
-        $response->assertJsonPath('data.question_text', 'Updated text?');
-        $this->assertDatabaseHas('questions', ['id' => $question->id, 'question_text' => 'Updated text?']);
+        $response->assertJsonPath('data.question_text.en', 'Updated text?');
+        $this->assertSame('Updated text?', $question->fresh()->question_text);
     }
 
     public function test_update_edits_the_time_limit(): void

@@ -18,8 +18,6 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // User::factory(10)->create();
-
         User::updateOrCreate(['email' => 'test@example.com'], [
             'name' => 'Test User',
             'role' => UserRole::User,
@@ -32,9 +30,7 @@ class DatabaseSeeder extends Seeder
             'password' => bcrypt('password'),
         ]);
 
-        if (Question::count() === 0) {
-            Question::factory(40)->create();
-        }
+        $this->call(QuestionSeeder::class);
 
         Question::query()
             ->whereNotNull('category')
