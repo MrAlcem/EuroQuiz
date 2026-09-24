@@ -116,6 +116,7 @@ class QuizController extends Controller
                 : null,
             'finished' => $outcome['result'] !== null,
             'result' => $outcome['result'] ? [
+                'id' => $outcome['result']->id,
                 'score' => $outcome['result']->score,
                 'correct_answers' => $outcome['result']->correct_answers,
                 'lives_remaining' => $outcome['result']->lives_remaining,
@@ -130,7 +131,11 @@ class QuizController extends Controller
         $payload = [
             'data' => $this->translatedQuestions($session),
             'session_id' => $session->id,
-            'timer_seconds' => $this->gamification->timerSeconds(),
+            // The limit for the question the player is about to see; each
+            // question in `data` also carries its own `time_limit_seconds`,
+            // since the server enforces it per question, not with one
+            // fixed timer for the whole session.
+            'timer_seconds' => $questions->first()?->time_limit_seconds ?? GamificationService::TIMER_SECONDS,
             'gamification' => $this->gamification->summary($request->user()),
         ];
 

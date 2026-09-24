@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * @property int $id
@@ -35,10 +36,10 @@ class Result extends Model
     }
 
     /**
-     * @return BelongsTo<QuizSession, $this>
+     * @return HasMany<ResultAnswer, $this>
      */
-    public function quizSession(): BelongsTo
+    public function answers(): HasMany
     {
-        return $this->belongsTo(QuizSession::class);
+        return $this->hasMany(ResultAnswer::class);
     }
 }

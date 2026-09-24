@@ -103,15 +103,18 @@ class QuizSessionService
         $question = Question::findOrFail($questionId);
         $timedOut = $session->question_started_at?->addSeconds($question->time_limit_seconds)->isPast() ?? false;
         $correct = ! $timedOut && $chosenOption !== null && $question->correct_option === $chosenOption;
+        $pointsAwarded = 0;
 
         if ($correct) {
             $session->correct_answers++;
             $session->current_streak++;
-            $session->score += $this->settings->pointsByDifficulty()[$question->difficulty];
+            $pointsAwarded = self::POINTS_BY_DIFFICULTY[$question->difficulty];
 
-            if ($session->current_streak % $this->settings->get('streak_length') === 0) {
-                $session->score += $this->settings->get('streak_bonus');
+            if ($session->current_streak % self::STREAK_LENGTH === 0) {
+                $pointsAwarded += self::STREAK_BONUS;
             }
+
+            $session->score += $pointsAwarded;
         } else {
             // The daily challenge has no lives: a wrong answer just moves on.
             if (! $isDaily) {
@@ -119,6 +122,16 @@ class QuizSessionService
             }
             $session->current_streak = 0;
         }
+
+        $session->answers_log = [
+            ...($session->answers_log ?? []),
+            [
+                'question_id' => $question->id,
+                'chosen_option' => $chosenOption,
+                'is_correct' => $correct,
+                'points_awarded' => $pointsAwarded,
+            ],
+        ];
 
         $session->current_question_index++;
         $finished = (! $isDaily && $session->lives_remaining <= 0)
@@ -153,6 +166,15 @@ class QuizSessionService
             ]);
             $user->increment('total_score', $score);
             $user->increment('xp', $xp);
+
+            $result->answers()->createMany(
+                collect($session->answers_log)->map(fn (array $answer) => [
+                    'question_id' => $answer['question_id'],
+                    'chosen_option' => $answer['chosen_option'],
+                    'is_correct' => $answer['is_correct'],
+                    'points_awarded' => $answer['points_awarded'],
+                ])->all()
+            );
 
             return [
                 'session' => $session,

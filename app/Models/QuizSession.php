@@ -10,13 +10,14 @@ class QuizSession extends Model
 {
     protected $fillable = [
         'user_id', 'question_ids', 'current_question_index', 'lives_remaining',
-        'score', 'correct_answers', 'current_streak', 'status', 'mode', 'daily_date', 'question_started_at',
+        'score', 'correct_answers', 'current_streak', 'answers_log', 'status', 'mode', 'daily_date', 'question_started_at',
     ];
 
     protected function casts(): array
     {
         return [
             'question_ids' => 'array',
+            'answers_log' => 'array',
             'daily_date' => 'date',
             'question_started_at' => 'datetime',
         ];
