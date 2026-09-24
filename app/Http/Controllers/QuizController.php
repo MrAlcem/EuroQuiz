@@ -52,6 +52,21 @@ class QuizController extends Controller
     }
 
     /**
+     * The full question set for an already-started session, re-translated
+     * into `?lang=`. Read-only — unlike `start`/`startDaily`, it never
+     * touches `question_started_at`, so switching language mid-quiz doesn't
+     * cost the player any time on the per-question timer.
+     */
+    public function questions(Request $request, QuizSession $quizSession): JsonResponse
+    {
+        abort_if($quizSession->user_id !== $request->user()->id, 403);
+
+        return response()->json([
+            'data' => $this->translatedQuestions($quizSession),
+        ]);
+    }
+
+    /**
      * Score one answer within an active session and return the next
      * question, or the final result once the session ends.
      */
@@ -84,13 +99,8 @@ class QuizController extends Controller
 
     private function sessionResponse(QuizSession $session, Request $request, bool $daily = false): JsonResponse
     {
-        $questions = Question::whereIn('id', $session->question_ids)
-            ->get()
-            ->sortBy(fn (Question $question) => array_search($question->id, $session->question_ids))
-            ->values();
-
         $payload = [
-            'data' => QuestionResource::collection($questions),
+            'data' => $this->translatedQuestions($session),
             'session_id' => $session->id,
             'timer_seconds' => GamificationService::TIMER_SECONDS,
             'gamification' => $this->gamification->summary($request->user()),
@@ -112,5 +122,16 @@ class QuizController extends Controller
         }
 
         return response()->json($payload);
+    }
+
+    /** @return \Illuminate\Http\Resources\Json\AnonymousResourceCollection */
+    private function translatedQuestions(QuizSession $session)
+    {
+        $questions = Question::whereIn('id', $session->question_ids)
+            ->get()
+            ->sortBy(fn (Question $question) => array_search($question->id, $session->question_ids))
+            ->values();
+
+        return QuestionResource::collection($questions);
     }
 }

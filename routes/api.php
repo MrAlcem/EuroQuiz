@@ -33,6 +33,7 @@ Route::middleware('auth:sanctum')->group(function () {
 Route::middleware(['auth:sanctum', 'locale'])->prefix('quiz')->group(function () {
     Route::get('/start', [QuizController::class, 'start']);
     Route::get('/daily', [QuizController::class, 'startDaily']);
+    Route::get('/sessions/{quizSession}/questions', [QuizController::class, 'questions']);
     Route::post('/sessions/{quizSession}/answer', [QuizController::class, 'answer']);
 });
 
